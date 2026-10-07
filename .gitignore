@@ -1,0 +1,49 @@
+# Family Tree Viewer: what belongs to one family's computer and must never be published.
+# A pattern without a leading "/" matches at any depth, on purpose: a stray copy is ignored too.
+
+# Made from the family's Word documents by tools/Update-FamilyTree.ps1
+data/
+
+# Private material on the family's computer (real-data checks, notes, the private handoff)
+dev/
+
+# The family's own settings (names, line letters, report address), and any copy or backup of them
+# ("family-settings - Copy.js", "family-settings.old.js", "family-settings.js.bak", ...).
+# Only the made-up example is public. Start from family-settings.example.js.
+family-settings*.js
+family-settings*.bak
+family-settings*.js.*
+!family-settings.example.js
+*.bak
+
+# Private handoff notes (kept in dev/private/; this name has held private notes before, at any depth)
+HANDOFF.md
+
+# The program updater's working folders on the family's computer
+updates/
+program-previous/
+
+# Where the documents are, when they are not in the folder above the viewer
+tools/settings.txt
+
+# Real documents never belong in the repository (the tests make their own, outside it)
+*.docx
+*.doc
+~$*
+
+# Test and release output. The scripts write to %TEMP% by default; these catch output pointed here.
+/release/
+/out/
+/test-output/
+FamilyTree-Tests-*/
+FamilyTree-CompareTrees-*/
+FamilyTree-Release/
+*.zip
+*.zip.sha256
+*.tmp
+
+# Editor and Windows leftovers
+.vs/
+.vscode/
+Thumbs.db
+desktop.ini

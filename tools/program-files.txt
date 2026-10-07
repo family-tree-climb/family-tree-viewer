@@ -1,0 +1,37 @@
+# Family Tree Viewer: THE list of program files (the allow-list).
+#
+# Every file of the program, one per line, relative to the viewer folder, written with "/".
+# Exact file names only (no wildcards). Lines starting with "#" are comments.
+#
+# tools/Build-Release.ps1 puts exactly these files into the release zip, and tools/Update-Program.ps1
+# only ever replaces or removes files named here (in the installed list or in the new one).
+# Never list anything that belongs to the family: data/, dev/, updates/, program-previous/,
+# family-settings.js or tools/settings.txt (an installer refuses a release that does).
+# A file that is not listed here is never touched by a program update.
+
+index.html
+Open Family Tree.cmd
+Go back to the previous version.cmd
+README.txt
+family-settings.example.js
+
+app/version.js
+app/config.js
+app/genealogy.js
+app/render.js
+app/app.js
+app/style.css
+
+tools/program-files.txt
+tools/Update-FamilyTree.ps1
+tools/Update-Program.ps1
+tools/Check-Tree.ps1
+tools/check-tree.html
+tools/Build-Release.ps1
+tools/Install-FamilyTree.ps1
+tools/family-tree.ico
+
+# compares the trees built by two program versions (see the comments at the top of the script)
+tests/Compare-Trees.ps1
+tests/compare-trees.html
+tests/compare-trees.js

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Compare trees</title>
+</head>
+<body>
+<!-- Used by tests/Compare-Trees.ps1 in headless Chrome. The scripts to load are given in the query string
+     as file:/// URLs (each value URL-encoded):
+       settings  family-settings.js (optional; if it cannot be loaded, FAMILY_SETTINGS_MISSING is set, as in index.html)
+       config    app/config.js            (required)
+       version   app/version.js           (optional, information only)
+       data      data/data.js             (required)
+       genealogy app/genealogy.js         (required)
+       render    app/render.js            (required)
+     compare-trees.js (next to this file) then prints the fingerprint into the "out" element below. -->
+<pre id="out">running</pre>
+<script>
+  window.CT_LOAD_ERRORS = [];
+  window.addEventListener('error', function (e) {
+    var t = e.target;
+    window.CT_LOAD_ERRORS.push(t && t.src ? 'could not load ' + t.src : (e.filename || '') + ':' + (e.lineno || '') + ' ' + e.message);
+  }, true);
+  (function () {
+    var q = {};
+    location.search.replace(/^\?/, '').split('&').forEach(function (kv) {
+      var i = kv.indexOf('=');
+      if (i > 0) { try { q[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1)); } catch (e) { } }
+    });
+    function attr(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+    function tag(src, onerror) {
+      document.write('<script src="' + attr(src) + '"' + (onerror ? ' onerror="' + attr(onerror) + '"' : '') + '><\/script>');
+    }
+    if (q.settings) tag(q.settings, 'window.FAMILY_SETTINGS_MISSING = true');
+    tag(q.config || 'missing-config.js');
+    if (q.version) tag(q.version);
+    tag(q.data || 'missing-data.js');
+    tag(q.genealogy || 'missing-genealogy.js');
+    tag(q.render || 'missing-render.js');
+    tag('compare-trees.js');
+  })();
+</script>
+<script>
+  if (window.CompareTrees) window.CompareTrees.main();
+  else document.getElementById('out').textContent = 'ERROR\tcompare-trees.js did not load. ' + window.CT_LOAD_ERRORS.join(' | ');
+</script>
+</body>
+</html>

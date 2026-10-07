@@ -1,0 +1,153 @@
+# The "Release" button (Actions > Release > Run workflow; also in the GitHub mobile app).
+#
+# 1. reads the version from app/version.js (window.FAMILY_VERSION = 'x.y.z';)
+# 2. stops if that version was already released (tag vx.y.z), so a release is never replaced
+# 3. runs all tests (tests\Run-Tests.ps1), exactly as CI does
+# 4. builds family-tree-viewer-x.y.z.zip and .zip.sha256 with tools\Build-Release.ps1 (the files of
+#    tools\program-files.txt and nothing else) and checks them once more
+# 5. publishes the GitHub release vx.y.z with those two files
+# The family's computer installs it the next time the Family Tree icon is opened (tools\Update-Program.ps1
+# looks at most once a day). To release: raise the version in app/version.js, push, press Release.
+name: Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Test, build and publish a release
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Releases are made from the default branch only
+        if: github.ref_name != github.event.repository.default_branch
+        shell: powershell
+        env:
+          BRANCH: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          Write-Host "::error::Release was started on the branch '$env:BRANCH'. Start it on '$env:DEFAULT_BRANCH'."
+          exit 1
+
+      - name: Check out with Windows line endings (the .cmd files need CR LF)
+        shell: powershell
+        run: git config --global core.autocrlf true
+
+      - uses: actions/checkout@v4
+
+      - name: Read the version from app/version.js
+        id: version
+        shell: powershell
+        run: |
+          $text = [IO.File]::ReadAllText('app\version.js')
+          $m = [regex]::Match($text, 'FAMILY_VERSION\s*=\s*[''"]([0-9A-Za-z.+-]{1,40})[''"]')
+          if (-not $m.Success) {
+            Write-Host "::error::Could not read the version from app/version.js (it should hold a line like  window.FAMILY_VERSION = '1.2.3';)."
+            exit 1
+          }
+          $v = $m.Groups[1].Value
+          if ($v -notmatch '^\d+\.\d+\.\d+$') {
+            Write-Host "::error::app/version.js says '$v'. A release needs a plain version number like 1.2.3."
+            exit 1
+          }
+          [IO.File]::AppendAllText($env:GITHUB_OUTPUT, "version=$v`n")
+          Write-Host "Version $v (tag v$v)"
+
+      - name: Stop if this version was already released
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $tag = "v$env:VERSION"
+          $found = git ls-remote --tags origin "refs/tags/$tag"
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::Could not ask GitHub which tags exist.'; exit 1 }
+          if ($found) {
+            Write-Host "::error::Version $env:VERSION was already released (the tag $tag exists). Raise the version in app/version.js, push that change, then press Release again."
+            exit 1
+          }
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "::error::A release $tag already exists (without a tag). Delete that draft on GitHub or raise the version in app/version.js."
+            exit 1
+          }
+          Write-Host "There is no tag or release $tag yet."
+          exit 0
+
+      - name: Run tests\Run-Tests.ps1
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Continue'
+          & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File tests\Run-Tests.ps1 -Out "$env:RUNNER_TEMP\family-tree-tests"
+          exit $LASTEXITCODE
+
+      - name: Keep the test files (only when something failed)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-files-${{ github.run_number }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/family-tree-tests
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Build the release files (tools\Build-Release.ps1)
+        shell: powershell
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Continue'
+          & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File tools\Build-Release.ps1 -OutDir "$env:RUNNER_TEMP\release" -Version $env:VERSION
+          exit $LASTEXITCODE
+
+      - name: Check the release files once more
+        shell: powershell
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          Add-Type -AssemblyName System.IO.Compression
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = Join-Path $env:RUNNER_TEMP "release\family-tree-viewer-$env:VERSION.zip"
+          $shaFile = "$zip.sha256"
+          foreach ($f in @($zip, $shaFile)) {
+            if (-not [IO.File]::Exists($f)) { Write-Host "::error::tools\Build-Release.ps1 did not make $f"; exit 1 }
+          }
+          $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $written = ([IO.File]::ReadAllText($shaFile).Trim() -split '\s+')[0]
+          if ($written -cne $hash) { Write-Host "::error::The .sha256 file says $written, the zip is $hash."; exit 1 }
+          $archive = [IO.Compression.ZipFile]::OpenRead($zip)
+          try { $names = @($archive.Entries | ForEach-Object { $_.FullName }) } finally { $archive.Dispose() }
+          # nothing that belongs to a family may ever be in a release
+          $bad = @($names | Where-Object { $_ -match '^(data|dev|updates|program-previous|\.git)/' -or $_ -ieq 'family-settings.js' -or $_ -ieq 'tools/settings.txt' -or $_.Contains('\') -or $_.Contains('..') -or $_.Contains(':') -or $_.StartsWith('/') })
+          if ($bad.Count) { Write-Host "::error::The zip holds files that must never be released: $($bad -join ', ')"; exit 1 }
+          foreach ($must in @('index.html', 'app/version.js', 'tools/program-files.txt', 'tools/Update-FamilyTree.ps1', 'tools/Update-Program.ps1')) {
+            if ($names -notcontains $must) { Write-Host "::error::The zip has no $must"; exit 1 }
+          }
+          Write-Host "$($names.Count) files in family-tree-viewer-$env:VERSION.zip, SHA-256 $hash"
+
+      - name: Publish the GitHub release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $tag = "v$env:VERSION"
+          $zip = Join-Path $env:RUNNER_TEMP "release\family-tree-viewer-$env:VERSION.zip"
+          $notesFile = Join-Path $env:RUNNER_TEMP 'release-notes.md'
+          $notes = "Family Tree Viewer $env:VERSION.`n`n" +
+            "It installs itself on the family's computer the next time the Family Tree icon is opened (the program looks for a new version at most once a day). " +
+            "If the new version does not work there, it goes back to the previous one by itself.`n`n" +
+            "Made by the Release workflow from commit $env:GITHUB_SHA after all tests passed.`n"
+          [IO.File]::WriteAllText($notesFile, $notes, (New-Object System.Text.UTF8Encoding($false)))
+          gh release create $tag $zip "$zip.sha256" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Family Tree Viewer $env:VERSION" --notes-file $notesFile --latest
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::gh release create failed."; exit 1 }
+          [IO.File]::AppendAllText($env:GITHUB_STEP_SUMMARY, "Released **$tag**: https://github.com/$env:GITHUB_REPOSITORY/releases/tag/$tag`n")
+          exit 0

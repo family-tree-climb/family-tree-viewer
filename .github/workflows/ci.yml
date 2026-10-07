@@ -1,0 +1,46 @@
+# Runs all automatic tests (tests\Run-Tests.ps1) on every push and pull request, on Windows with
+# Windows PowerShell 5.1 and Google Chrome, exactly as they run on a PC:
+#   powershell -NoProfile -ExecutionPolicy Bypass -File tests\Run-Tests.ps1
+# When something fails, the test folder (made-up documents, logs, the snapshot of this run) is kept as
+# an artifact of the run for 14 days.
+name: CI
+
+on:
+  push:
+    branches: ['**']        # every branch; tags (releases) are tested by release.yml itself
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Tests (Windows PowerShell 5.1)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out with Windows line endings (the .cmd files need CR LF)
+        shell: powershell
+        run: git config --global core.autocrlf true
+
+      - uses: actions/checkout@v4
+
+      - name: Run tests\Run-Tests.ps1
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Continue'
+          & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File tests\Run-Tests.ps1 -Out "$env:RUNNER_TEMP\family-tree-tests"
+          exit $LASTEXITCODE
+
+      - name: Keep the test files (only when something failed)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-files-${{ github.run_number }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/family-tree-tests
+          if-no-files-found: warn
+          retention-days: 14

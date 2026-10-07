@@ -1,0 +1,12 @@
+# Windows batch files must keep CR LF line endings: cmd.exe misreads LF-only files, and
+# tools/Build-Release.ps1 refuses them. (The workflows also set core.autocrlf before checkout.)
+*.cmd text eol=crlf
+
+# The plain-English guide is opened in Notepad on the family's computer.
+README.txt text eol=crlf
+
+# Binary files
+*.ico binary
+*.png binary
+*.docx binary
+*.zip binary

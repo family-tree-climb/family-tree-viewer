@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tree snapshot</title>
+</head>
+<body>
+<!-- Used by tests/Run-Tests.ps1 in headless Chrome. Run-Tests copies tests/pages into the test copy of
+     the viewer as "test-pages", so the program files are one folder up. snapshot.js writes a readable
+     description of the family model into the "out" element. -->
+<pre id="out">running</pre>
+<script>
+  window.SNAP_LOAD_ERRORS = [];
+  window.addEventListener('error', function (e) {
+    var t = e.target;
+    window.SNAP_LOAD_ERRORS.push(t && t.src ? 'could not load ' + t.src : (e.filename || '') + ':' + (e.lineno || '') + ' ' + e.message);
+  }, true);
+</script>
+<script src="../family-settings.js" onerror="window.FAMILY_SETTINGS_MISSING = true"></script>
+<script src="../app/config.js"></script>
+<script src="../app/version.js"></script>
+<script src="../data/data.js"></script>
+<script src="../app/genealogy.js"></script>
+<script src="../app/render.js"></script>
+<script src="snapshot.js"></script>
+</body>
+</html>

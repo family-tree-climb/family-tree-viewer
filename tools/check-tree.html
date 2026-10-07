@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Check the family tree</title>
+</head>
+<body>
+<!-- Family Tree Viewer health check, opened by tools/Check-Tree.ps1 in headless Chrome.
+
+     It loads one installation exactly as its index.html does: every script index.html loads BEFORE
+     app/app.js, in the same order (in 1.0: family-settings.js, app/config.js, app/version.js,
+     data/data.js, app/genealogy.js, app/render.js). The list is read from the installation's own
+     index.html, because the installed (older) copy of this page also measures a NEWER version, which may
+     load more files; if index.html cannot be read, the 1.0 list is used. Then it builds the family tree
+     once with Genealogy.build(FAMILY_DATA) and prints ONE line of JSON into the "out" element below.
+     (So later versions must keep: model scripts before app/app.js in index.html, window.FAMILY_CONFIG
+     with roots, window.Render, and Genealogy.build(data) returning { people, docs }.)
+
+
+       {"version":"1.0.0","built":"...","docs":7,"personDocs":6,"peopleKnown":14,"people":20,
+        "roots":{"tom":true,"ruth":true},"errors":0,"settingsProblem":"","buildError":null,"loadErrors":[]}
+
+       version          window.FAMILY_VERSION ('' for programs before 1.0, which have no app/version.js)
+       built            when data.js was written;  docs: documents in data.js
+       personDocs       documents attached to a person in the tree
+       peopleKnown      people in the tree with a name (not "Unknown father/mother")
+       people           all places in the tree
+       roots            every root person of the settings: true when the tree has them
+       errors           documents that could not be read at the last update (data.js "errors")
+       settingsProblem  app/config.js's FAMILY_CONFIG.settingsProblem ('' = fine)
+       buildError       null, or why the tree could not be built (a script that did not load or failed,
+                        missing data.js, unusable family settings, an error inside the build)
+
+     The installation is "../" (this file sits in its tools folder) unless the address says otherwise:
+       check-tree.html?root=<URL-encoded file:/// address of the installation folder, ending in "/">
+     Nothing here changes any file. -->
+<pre id="out">running</pre>
+<script>
+  window.CHECK_ERRORS = [];
+  window.addEventListener('error', function (e) {
+    var t = e.target;
+    if (t && t.tagName === 'SCRIPT') window.CHECK_ERRORS.push({ load: t.getAttribute('data-part') || t.src });
+    else window.CHECK_ERRORS.push({ error: String(e.message || 'script error') + (e.filename ? ' (' + String(e.filename).split('/').pop() + ':' + (e.lineno || '') + ')' : '') });
+  }, true);
+  (function () {
+    var root = '../';
+    var m = /[?&]root=([^&]*)/.exec(location.search);
+    if (m) { try { root = decodeURIComponent(m[1]); } catch (e) { } }
+    if (root.charAt(root.length - 1) !== '/') root += '/';
+    window.CHECK_ROOT = root;
+    function attr(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+    function tag(part, onerror) {
+      document.write('<script data-part="' + part + '" src="' + attr(root + part) + '"' + (onerror ? ' onerror="' + onerror + '"' : '') + '><\/script>');
+    }
+    // the scripts of the installation's own index.html, in its order, up to (not including) app/app.js
+    var parts = null;
+    try {
+      var x = new XMLHttpRequest();
+      x.open('GET', root + 'index.html', false);
+      x.send(null);
+      var html = String(x.responseText || '').replace(/<!--[\s\S]*?-->/g, '');
+      var re = /<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi, found, list = [];
+      while ((found = re.exec(html))) {
+        var src = found[1];
+        if (/^app\/app\.js$/i.test(src)) break;
+        if (/^[a-z][a-z0-9+.-]*:|^\/|\\|\.\./i.test(src)) continue;    // only files inside the installation
+        list.push(src);
+      }
+      if (list.length) parts = list;
+    } catch (e) { }
+    if (!parts) parts = ['family-settings.js', 'app/config.js', 'app/version.js', 'data/data.js', 'app/genealogy.js', 'app/render.js'];
+    window.CHECK_PARTS = parts;
+    parts.forEach(function (p) {
+      tag(p, p === 'family-settings.js' ? 'window.FAMILY_SETTINGS_MISSING = true' : (p === 'data/data.js' ? 'window.FAMILY_DATA_MISSING = true' : ''));
+    });
+  })();
+</script>
+<script>
+  (function () {
+    var r = {
+      version: typeof window.FAMILY_VERSION === 'string' ? window.FAMILY_VERSION : '',
+      built: null, docs: 0, personDocs: 0, peopleKnown: 0, people: 0, roots: {}, errors: 0,
+      settingsProblem: '', buildError: null, loadErrors: []
+    };
+    // family-settings.js (programs before 1.0 have none) and app/version.js may be missing; the rest must load
+    var optional = { 'family-settings.js': 1, 'app/version.js': 1 };
+    var problems = [];
+    window.CHECK_ERRORS.forEach(function (e) {
+      if (e.load) { r.loadErrors.push(e.load); if (!optional[e.load]) problems.push(e.load + ' could not be loaded'); }
+      else problems.push('script error: ' + e.error);
+    });
+    try {
+      var CFG = window.FAMILY_CONFIG, D = window.FAMILY_DATA, G = window.Genealogy;
+      if (!CFG) throw new Error('app/config.js did not set up the settings');
+      r.settingsProblem = typeof CFG.settingsProblem === 'string' ? CFG.settingsProblem : '';
+      if (r.settingsProblem) throw new Error('the family settings (family-settings.js) are ' + r.settingsProblem);
+      if (!D || !D.docs || typeof D.docs.length !== 'number') throw new Error('data/data.js is missing or could not be read');
+      r.built = D.built || null;
+      r.docs = D.docs.length;
+      r.errors = (D.errors || []).length;
+      if (!window.Render) throw new Error('app/render.js did not load');
+      if (!G || typeof G.build !== 'function') throw new Error('app/genealogy.js did not load');
+      var M = G.build(D);
+      if (!M || !M.people || !M.docs) throw new Error('the tree came out empty');
+      Object.keys(M.docs).forEach(function (id) { if (M.docs[id] && M.docs[id].kind === 'person') r.personDocs++; });
+      Object.keys(M.people).forEach(function (k) {
+        var p = M.people[k];
+        r.people++;
+        if (p && (p.root || p.doc || (p.name && !/^Unknown( father| mother)?$/i.test(p.name)))) r.peopleKnown++;
+      });
+      (CFG.roots || []).forEach(function (root) { if (root && root.key) r.roots[root.key] = !!M.people[root.key]; });
+    } catch (e) {
+      r.buildError = String((e && e.message) || e);
+    }
+    if (!r.buildError && problems.length) r.buildError = problems.join('; ');
+    else if (r.buildError && problems.length) r.buildError += ' (' + problems.join('; ') + ')';
+    document.getElementById('out').textContent = JSON.stringify(r);
+  })();
+</script>
+</body>
+</html>
