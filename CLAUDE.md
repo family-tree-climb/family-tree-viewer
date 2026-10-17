@@ -123,6 +123,13 @@ first.
     sets `p.photo`, `p.photoFile` and keeps the document's picture in `p.docPhoto`. Unused photos go to
     `notes.photos` (`no number`, `nobody`, `unreadable`, `another`).
   - The person page's "Add a photo" / "Change photo" button (`photobtn`, box `photohelp`) explains the steps.
+- **Flags (since 1.1.0).** `genealogy.js` (`flagOf`, `COUNTRIES`) sets `p.flag = { code, country, from, text }`
+  from a `Flag:` line, else from the first `immigration` line (a country after "from" wins; one after
+  "to/in/at/..." is the destination). Words match whole, without look-behind (older browsers); "New
+  England", "New South Wales", "New Mexico", "South America" are excluded. Lines without a known country go
+  to `notes.flags`. `app/flags.js` holds only the pictures (`window.FAMILY_FLAGS`, flag-icons, MIT; Spain and
+  Serbia as plain civil flags); `app.js` shows them as data-URI `<img class="flag">`, so `genealogy.js` and
+  `tests/compare-trees.html` do not need it. A new country needs both a `COUNTRIES` entry and a picture.
 - **`$BuilderVersion`** (in Update-FamilyTree.ps1) is the data-format version, currently 4. Raise it only
   when the JSON a document turns into changes. Every document is then re-read once.
 - **`app/genealogy.js`** (runs in the browser) holds all the genealogy rules:

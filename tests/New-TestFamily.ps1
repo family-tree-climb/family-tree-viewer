@@ -36,6 +36,8 @@
       in the life history, a photo with the camera's rotation flag, a photo for a place of pedigree
       collapse (D3,8 = C3,2), one for a person without a document, a lower-case "d4,12.JPG", one for a
       root person ("ruth.jpg"), one for a number nobody has, one without a number and a damaged one
+    * flags: "Immigration: 1855, from Kent, England to New York" (England), "to New England from Wales"
+      (Wales, not England), "Flag: Irish" (Ireland) and "Arrived: 1859 at New Orleans" (no country: noted)
 
   Changing a document here changes what the tests expect: run tests\Run-Tests.ps1 -UpdateSnapshot, read
   the changes in tests\expected\snapshot.json, and adjust the counts and checks in Run-Tests.ps1. The
@@ -248,6 +250,7 @@ $Family = @(
       'Birth: 1898, Ballyglen, Ireland'
       'Death: 1980, Millbrook, IL'
       'Marriage: Patrick Brennan (B2,1), 1922'
+      'Flag: Irish'
       ''
       'Nora sailed from Ireland with her sister in 1919.'
       '@center {img:Headstone in the churchyard|10000}'
@@ -315,6 +318,7 @@ $Family = @(
       'Descendant: Ida May Fenwick (C2,2)'
       'Birth: 1868, Riverton, Iowa'
       'Death: 1931, Riverton, Iowa'
+      'Immigration: 1888, to New England from Wales'
       'Marriage: 5/20/1895 to Alice Pennock (C3,4)(1872-1950)'
       ''
       'Robert was the Riverton postmaster for twenty years.'
@@ -353,6 +357,7 @@ $Family = @(
       'Descendant: Frank Dalby (D2,3)'
       'Birth: 1860, Lone Oak, Iowa'
       'Death: 1931, Lone Oak, Iowa'
+      'Arrived: 1859 at New Orleans'
       'Marriage: Emma Lindale (D3,6), 1885'
       ''
       'George was {b}the{/b} {i}blacksmith{/i} of {u}Lone Oak{/u} and the 1{sup}st{/sup} man in town to own a motor car. Water is H{sub}2{/sub}O; the old sign said {strike}Smithy{/strike} Blacksmith.'
@@ -375,6 +380,7 @@ $Family = @(
       'Descendant: Emma Lindale (D3,6)'
       'Birth: 1830, Kent, England'
       'Death: 1899, Lone Oak, Iowa'
+      'Immigration: 1855, from Kent, England to New York'
       ''
       'William was a stonemason; the church in Lone Oak is his work.'
     ) }

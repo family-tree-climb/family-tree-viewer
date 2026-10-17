@@ -54,8 +54,19 @@
   var SIL = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.2" r="4.4" fill="currentColor"/><path d="M3.5 21.5c.8-4.6 4.2-7.2 8.5-7.2s7.7 2.6 8.5 7.2" fill="currentColor"/></svg>';
   function avatar(p, extra) {
     var cls = 'avatar ' + ((p && p.sex) || '') + (extra ? ' ' + extra : '');
-    if (p && p.photo) return '<span class="' + cls + '"><img src="' + esc(p.photo) + '" alt="" loading="lazy"></span>';
-    return '<span class="' + cls + ' noimg">' + SIL + '</span>';
+    if (p && p.photo) return '<span class="' + cls + '"><img src="' + esc(p.photo) + '" alt="" loading="lazy">' + flagImg(p) + '</span>';
+    return '<span class="' + cls + ' noimg">' + SIL + flagImg(p) + '</span>';
+  }
+  // the flag of the country a person came from (genealogy.js decides which; app/flags.js has the pictures)
+  var flagUrls = {};
+  function flagUrl(code) {
+    var svg = window.FAMILY_FLAGS && window.FAMILY_FLAGS[code];
+    if (!svg) return '';
+    return flagUrls[code] || (flagUrls[code] = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg));
+  }
+  function flagImg(p, cls) {
+    var url = p && p.flag ? flagUrl(p.flag.code) : '';
+    return url ? '<img class="' + (cls || 'flag') + '" src="' + url + '" alt="' + esc(p.flag.country) + '" title="Came from ' + esc(p.flag.country) + '">' : '';
   }
   function famPerson(p, emptyLabel, note) {
     if (!known(p)) return '<div class="fam-person unknown"><span class="avatar">' + SIL + '</span><div><div class="fp-name">' + esc(emptyLabel || 'Unknown') + '</div></div></div>';
@@ -367,6 +378,7 @@
       '<div><h1>' + esc(p.name) + '</h1><div class="years">' + esc(p.years || '') + '</div><div class="rel">' +
       (relation ? '<span class="chip">' + esc(relation) + '</span>' : '') +
       (p.line ? '<span class="chip gold">' + esc(lineName(p)) + '</span>' : '') +
+      (p.flag ? '<span class="chip flagchip">' + flagImg(p, 'chipflag') + 'Came from ' + esc(p.flag.country) + '</span>' : '') +
       (p.code ? '<span class="chip code" title="Generation ' + p.gen + ', number ' + p.pos + '">' + esc(p.code) + '</span>' : '') +
       '</div></div><div class="actions"><a class="btn primary" href="' + treeHref(p) + '">Show ' + esc(p.short.split(' ')[0]) + '’s ancestors</a>' +
       (photoName(p) ? '<button class="btn" id="photobtn" type="button" aria-expanded="false" aria-controls="photohelp">' + (p.photoFile ? 'Change photo' : 'Add a photo') + '</button>' : '') +
@@ -423,7 +435,7 @@
         b.onclick = function () { copyText(b.getAttribute('data-copytext'), function () { b.textContent = 'Copied'; setTimeout(function () { b.textContent = label; }, 2000); }); };
       });
     }
-    var av = main.querySelector('.person-head .avatar img');
+    var av = main.querySelector('.person-head .avatar img:not(.flag)');
     if (av) av.parentNode.onclick = function () { openLightbox([{ img: p.photo, caption: p.name }], 0); };
     showTab(p, tab, pics, mentions);
   }
@@ -457,7 +469,9 @@
       'A picture already on the computer: copy it into the Photos folder, then rename it to <b>' + esc(name) + '</b> (the ending, such as .jpg, stays).</p></li>' +
       '<li>Open the <b>Family Tree</b> icon on the desktop again. The photo appears in ' + first + '\u2019s square, in the tree and everywhere else.</li></ol>' +
       '<p class="small muted" style="margin-bottom:0">JPEG and PNG pictures work. Words may follow the number, for example <i>' + esc(name) + ' at 20.jpg</i>. ' +
-      'The square shows the middle of the picture and keeps the top, so faces are not cut off; a picture cropped close around the face looks best.</p></div>';
+      'The square shows the middle of the picture and keeps the top, so faces are not cut off; a picture cropped close around the face looks best.</p>' +
+      '<p class="small muted" style="margin-bottom:0"><b>A flag in the corner</b> shows where someone came from. Write a line at the top of the life history such as ' +
+      '<i>Arrived: 1848, from Ireland</i> (or <i>Flag: Ireland</i>), then open the Family Tree icon again.' + (p.flag ? ' Now: ' + esc(p.flag.country) + '.' : '') + '</p></div>';
     return html;
   }
 
@@ -535,7 +549,7 @@
   }
 
   var FACT_ROWS = [['birth', 'Born'], ['baptism', 'Baptized'], ['death', 'Died'], ['burial', 'Buried'], ['marriage', 'Married'],
-    ['immigration', 'Immigration'], ['residence', 'Residence'], ['occupation', 'Occupation'], ['military', 'Military'], ['religion', 'Religion']];
+    ['immigration', 'Immigration'], ['flag', 'Flag'], ['residence', 'Residence'], ['occupation', 'Occupation'], ['military', 'Military'], ['religion', 'Religion']];
   function factsHtml(p) {
     var f = p.facts || {};
     var html = '<div class="card"><h2>Facts</h2><table class="facts linked">';
@@ -861,6 +875,11 @@
         'the picture could not be read' + (whoLink ? ' (for ' + whoLink + ')' : '') + ' <span class="muted">' + esc(x.err || '') + '</span>';
       return esc(x.path) + ' \u2014 ' + why;
     }));
+    var flagNotes = n.flags || [];
+    if (flagNotes.length) html += section('Flags that could not be shown', flagNotes.length, 'A Flag: line, or an Arrived: / Immigration: line, that does not name a country the program knows. Writing \u201cfrom\u201d and the country (for example \u201c1848, from Ireland\u201d) or a Flag: line fixes it.', flagNotes.map(function (x) {
+      var who = byKey(x.person);
+      return (who ? '<a href="' + personHref(who) + '">' + esc(who.short) + '</a>' : esc(x.person)) + ' \u2014 <i>' + esc(x.value) + '</i>';
+    }));
     if (n.ignored.length) html += section('Skipped on purpose', n.ignored.length, 'Listed in family-settings.js as not being about a person.', n.ignored.map(function (d) { return esc(d.path); }));
     if (reportEmail()) {
       html += '<p class="small muted" id="notes-report" style="margin:16px 0 0">Something not right? <a href="' + esc(reportMailto()) + '">Report a problem</a> ' +
@@ -904,7 +923,7 @@
       '<li>On the <b>first line</b> of the document: the name and the same number in brackets — <i>' + esc(ex.name + ' (' + ex.code + ')') + '</i>. On the <b>second line</b>: the years — <i>' + esc(ex.years) + '</i>.</li>' +
       '<li>Then, each on its own line: <i>Father:</i>, <i>Mother:</i>, <i>Descendant:</i> (the child in the line), <i>Birth:</i>, <i>Death:</i>, <i>Marriage:</i>. Put the number after a name when you know it: <i>Father: ' + esc(ex.father) + '</i>. Write <i>?</i> when a parent is not known.</li>' +
       '<li>Open the <b>Family Tree</b> icon on the desktop. New and changed documents are read by themselves (a few seconds) and the page refreshes on its own. The new person appears in the tree, joined to their parents and child.</li>' +
-      '</ol><p class="muted">Pictures in the documents appear automatically. To put a photo in a person’s square, open their page and click <b>Add a photo</b>. Documents that are not about one person' + (ex.story ? ' (like “' + esc(ex.story) + '”)' : '') + ' appear under <a href="#/stories">Stories</a>.</p>' +
+      '</ol><p class="muted">Pictures in the documents appear automatically. To put a photo in a person’s square, open their page and click <b>Add a photo</b>. A line such as <i>Arrived: 1848, from Ireland</i> (or <i>Flag: Ireland</i>) puts that country’s flag in the corner of the square. Documents that are not about one person' + (ex.story ? ' (like “' + esc(ex.story) + '”)' : '') + ' appear under <a href="#/stories">Stories</a>.</p>' +
       '<p class="muted" style="margin-bottom:0"><b>The numbering:</b> the father of <i>(g, n)</i> is <i>(g+1, 2n−1)</i> and the mother is <i>(g+1, 2n)</i>. ' +
       (pf && pm ? 'For example, the parents of ' + esc(ex.code) + ' are ' + esc(pf) + ' and ' + esc(pm) + '. ' : '') +
       letters + '.</p></div>' +

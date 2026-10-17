@@ -20,6 +20,7 @@ app/config.js
 app/genealogy.js
 app/render.js
 app/app.js
+app/flags.js
 app/style.css
 
 tools/program-files.txt

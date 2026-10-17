@@ -136,7 +136,7 @@
       r.copyName = box ? Array.prototype.map.call(box.querySelectorAll('[data-copytext]'), function (b) { return b.getAttribute('data-copytext'); }) : [];
       var av = document.querySelector('#main .person-head .avatar');
       r.square = av ? getComputedStyle(av).borderRadius : '';
-      var img = av && av.querySelector('img');
+      var img = av && av.querySelector('img:not(.flag)');
       r.img = img ? img.getAttribute('src') : '';
       if (img) {
         av.click();
@@ -148,6 +148,15 @@
       next();
     });
   });
+  // the flag of the country a person came from
+  var withFlag = Object.keys(M.people).sort().filter(function (k) { return M.people[k].flag && G.resolve(k) === k; })[0];
+  if (withFlag) {
+    go('#/p/' + enc(withFlag), function (res, next) {
+      var f = document.querySelector('#main .person-head .avatar img.flag'), chip = document.querySelector('#main .person-head .flagchip');
+      res.flagShown = { person: withFlag, inSquare: !!f, chip: chip ? chip.textContent : '', loaded: !!(f && f.complete && f.naturalWidth > 0) };
+      next();
+    });
+  }
   Object.keys(M.docs).sort().forEach(function (id) { go('#/doc/' + id); });
   go('#/p/Z9%2C9');
   go('#/tree/Z9%2C9');

@@ -111,6 +111,7 @@
         alsoAt: p.alsoAt,
         father: G.resolve(G.fatherKey(k)), mother: G.resolve(G.motherKey(k)), child: G.resolve(G.childKey(k)), spouse: G.resolve(G.spouseKey(k)),
         photo: media(p.photo), photoFile: p.photoFile, docPhoto: media(p.docPhoto),
+        flag: p.flag ? p.flag.code + ' ' + p.flag.country + ' (' + p.flag.from + ')' : '',
         facts: p.facts,
         otherSpouses: refs(p.otherSpouses), otherChildren: refs(p.otherChildren), siblings: refs(p.siblings),
         events: (p.events || []).map(function (e) { return e.year + (e.approx ? ' (about)' : '') + ' ' + (e.label || '-') + ': ' + e.text; }),

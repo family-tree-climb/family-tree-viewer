@@ -151,10 +151,11 @@
     ['death', /^(death|died|d\.)(?=[\s:])/i], ['burial', /^(burial|buried|grave)\b/i],
     ['marriage', /^(marriages?|married|spouses?|husband|wife|m\.)(?=[\s:(])/i],
     ['immigration', /^(immigration|emigration|arrival|arrived)\b/i], ['residence', /^(residences?)\b/i],
-    ['occupation', /^(occupation)\b/i], ['military', /^(military|service)\b/i], ['religion', /^(religion)\b/i]
+    ['occupation', /^(occupation)\b/i], ['military', /^(military|service)\b/i], ['religion', /^(religion)\b/i],
+    ['flag', /^(flag)\b/i]
   ];
   var MULTI = { children: 1, siblings: 1, marriage: 1, residence: 1, parents: 1 };
-  var HEADERISH = { father: 1, mother: 1, parents: 1, descendant: 1, siblings: 1, children: 1, birth: 1, baptism: 1, death: 1, burial: 1, marriage: 1, immigration: 1 };
+  var HEADERISH = { father: 1, mother: 1, parents: 1, descendant: 1, siblings: 1, children: 1, birth: 1, baptism: 1, death: 1, burial: 1, marriage: 1, immigration: 1, flag: 1 };
   var MONTH_START = /^(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s/i;
   var MONTHS = '(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\\.?';
   var LEAD_DATE = new RegExp('^\\s*(?:(?:abt\\.?|about|c\\.|ca\\.?|circa|~|bef\\.?|aft\\.?|before|after|on|around)\\s*)?(?:\\d{1,2}\\s+' + MONTHS + ',?\\s*\\d{2,4}|' + MONTHS + '\\s+\\d{1,2},?\\s*\\d{2,4}|\\d{1,2}[\\/.-]\\d{1,2}[\\/.-]\\d{2,4}|\\d{3,4})(?:\\s*[•·]\\s*[^,]*)?\\s*[,;:]?\\s*(?:to\\s+)?', 'i');
@@ -446,7 +447,7 @@
   }
 
   function build(data) {
-    var people = {}, docs = {}, stories = [], notes = { duplicates: [], codeMismatch: [], refMismatch: [], badCodes: [], unreadable: [], unmatched: [], ignored: [], warnings: [], collapse: [], photos: [] };
+    var people = {}, docs = {}, stories = [], notes = { duplicates: [], codeMismatch: [], refMismatch: [], badCodes: [], unreadable: [], unmatched: [], ignored: [], warnings: [], collapse: [], photos: [], flags: [] };
     aliases = {};
     var docList = (data && data.docs) || [];
     var ignore = {};
@@ -750,6 +751,7 @@
       p.events = p.info && p.doc.personKey === k ? timelineOf(p.info) : [];
       p.placeholder = !p.doc && !p.root;
       if (p.placeholder && p.extraFacts) p.facts = p.extraFacts;
+      p.flag = flagOf(p, notes.flags);
     });
 
     // --- 8. photos from the Photos folder (they win over a picture found in the life history)
@@ -843,6 +845,113 @@
     });
   }
 
+  // ---------------------------------------------------------------- flags
+  // The country a person came from, for the flag in the corner of their square: from a "Flag:" line
+  // ("Flag: Ireland"; "Flag: none" for no flag), otherwise from an Immigration: / Emigration: /
+  // Arrival: / Arrived: line ("1848, from County Cork, Ireland to New York" -> Ireland). In such a line a
+  // country after "from" wins; one after "to", "in", "at" ... is where they went, not where they came from.
+  // Each entry: code (the picture in app/flags.js), the name shown, the words (matched whole, any case),
+  // and what may not stand right before them ("New England", "New South Wales", "South America").
+  var COUNTRIES = [
+    ['ie', 'Ireland', 'ireland|irish|eire'],
+    ['gb-eng', 'England', 'england|english', ['new ']],
+    ['gb-sct', 'Scotland', 'scotland|scottish|scots'],
+    ['gb-wls', 'Wales', 'wales|welsh', ['new south ']],
+    ['gb', 'the United Kingdom', 'united kingdom|great britain|britain|british|u\\.k\\.|uk'],
+    ['im', 'the Isle of Man', 'isle of man|manx'],
+    ['de', 'Germany', 'germany|german|prussia|prussian|bavaria|bavarian|saxony|w\u00fcrttemberg|wuerttemberg|wurttemberg|baden|hesse|hessen|pomerania|westphalia|mecklenburg'],
+    ['nl', 'the Netherlands', 'netherlands|holland|dutch'],
+    ['be', 'Belgium', 'belgium|belgian|flanders|flemish'],
+    ['lu', 'Luxembourg', 'luxembourg|luxemburg'],
+    ['fr', 'France', 'france|french'],
+    ['ch', 'Switzerland', 'switzerland|swiss'],
+    ['at', 'Austria', 'austria|austrian'],
+    ['hu', 'Hungary', 'hungary|hungarian'],
+    ['cz', 'Czechia', 'czechoslovakia|czech republic|czechia|czech|bohemia|bohemian|moravia'],
+    ['sk', 'Slovakia', 'slovakia|slovak'],
+    ['pl', 'Poland', 'poland|polish'],
+    ['se', 'Sweden', 'sweden|swedish'],
+    ['no', 'Norway', 'norway|norwegian'],
+    ['dk', 'Denmark', 'denmark|danish'],
+    ['fi', 'Finland', 'finland|finnish'],
+    ['is', 'Iceland', 'iceland|icelandic'],
+    ['it', 'Italy', 'italy|italian|sicily|sicilian'],
+    ['es', 'Spain', 'spain|spanish'],
+    ['pt', 'Portugal', 'portugal|portuguese|azores|madeira'],
+    ['gr', 'Greece', 'greece|greek'],
+    ['ru', 'Russia', 'russia|russian'],
+    ['ua', 'Ukraine', 'ukraine|ukrainian'],
+    ['lt', 'Lithuania', 'lithuania|lithuanian'],
+    ['lv', 'Latvia', 'latvia|latvian'],
+    ['ee', 'Estonia', 'estonia|estonian'],
+    ['hr', 'Croatia', 'croatia|croatian'],
+    ['si', 'Slovenia', 'slovenia|slovenian'],
+    ['rs', 'Serbia', 'serbia|serbian'],
+    ['ro', 'Romania', 'romania|romanian'],
+    ['bg', 'Bulgaria', 'bulgaria|bulgarian'],
+    ['tr', 'Turkey', 'turkey|turkish|ottoman empire'],
+    ['am', 'Armenia', 'armenia|armenian'],
+    ['lb', 'Lebanon', 'lebanon|lebanese'],
+    ['sy', 'Syria', 'syria|syrian'],
+    ['cn', 'China', 'china|chinese'],
+    ['jp', 'Japan', 'japan|japanese'],
+    ['ph', 'the Philippines', 'philippines|filipino'],
+    ['in', 'India', 'india'],
+    ['ca', 'Canada', 'canada|canadian'],
+    ['us', 'the United States', 'united states|u\\.s\\.a\\.|u\\.s\\.|usa|america', ['south ', 'central ', 'latin ', 'north ']],
+    ['mx', 'Mexico', 'mexico|mexican', ['new ']],
+    ['cu', 'Cuba', 'cuba|cuban'],
+    ['pr', 'Puerto Rico', 'puerto rico'],
+    ['jm', 'Jamaica', 'jamaica|jamaican'],
+    ['au', 'Australia', 'australia|australian'],
+    ['nz', 'New Zealand', 'new zealand'],
+    ['za', 'South Africa', 'south africa']
+  ].map(function (c) {
+    // whole words: no letter right before or after (written without look-behind, for older browsers)
+    return { code: c[0], name: c[1], re: new RegExp('(^|[^a-z\\u00c0-\\u024f])(' + c[2] + ')(?![a-z\\u00c0-\\u024f])', 'gi'), notAfter: c[3] || [] };
+  });
+  function countriesIn(text) {
+    var s = String(text || ''), hits = [];
+    COUNTRIES.forEach(function (c) {
+      var m;
+      c.re.lastIndex = 0;
+      while ((m = c.re.exec(s))) {
+        var at = m.index + m[1].length, before = s.slice(0, at).toLowerCase().replace(/\s+/g, ' ');
+        if (!c.notAfter.some(function (w) { return before.slice(-w.length) === w; })) hits.push({ code: c.code, name: c.name, at: at, len: m[2].length, before: before });
+        if (m[0].length === 0) c.re.lastIndex++;
+      }
+    });
+    // the earliest first; a longer name wins over a shorter one inside it ("Great Britain" / "Britain")
+    hits.sort(function (a, b) { return (a.at - b.at) || (b.len - a.len); });
+    return hits.filter(function (h, i) { return !hits.some(function (o, j) { return j !== i && o.at <= h.at && o.at + o.len >= h.at + h.len && (o.len > h.len || j < i); }); });
+  }
+  function countryCameFrom(text) {
+    var hits = countriesIn(text);
+    var from = hits.filter(function (h) { return /(^|[^a-z])from (the )?$/.test(h.before); });
+    if (from.length) return from[0];
+    var notTo = hits.filter(function (h) { return !/(^|[^a-z])(to|in|into|at|for|reached|landed|via|through) (the )?$/.test(h.before); });
+    return notTo[0] || null;
+  }
+  // { code, country, from: 'flag' | 'immigration', text } or null; lines that name no known country are noted
+  function flagOf(p, notesList) {
+    var f = p.facts || {};
+    var fl = (f.flag || [])[0];
+    if (fl) {
+      if (/^\s*(none|no|-+)\s*\.?\s*$/i.test(fl)) return null;
+      var c = countriesIn(fl)[0];
+      if (c) return { code: c.code, country: c.name, from: 'flag', text: fl };
+      notesList.push({ person: p.key, line: 'flag', value: fl });
+      return null;
+    }
+    var im = f.immigration || [];
+    for (var i = 0; i < im.length; i++) {
+      var c2 = countryCameFrom(im[i]);
+      if (c2) return { code: c2.code, country: c2.name, from: 'immigration', text: im[i] };
+    }
+    if (im.length) notesList.push({ person: p.key, line: 'immigration', value: im[0] });
+    return null;
+  }
+
   // ---------------------------------------------------------------- relationship words
   function ordinal(n) { var s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
   function relationWord(gen, sex) {
@@ -875,6 +984,6 @@
     fatherKey: fatherKey, motherKey: motherKey, childKey: childKey, spouseKey: spouseKey, sexOf: sexOf,
     parseKey: parseKey, validKey: validKey, findCodes: findCodes,
     relationTo: relationTo, relationWord: relationWord, placeOf: placeOf, firstYear: firstYear, marriageYear: marriageYear, shortName: shortName,
-    normName: normName, roots: ROOTS, analyse: analyse, parseRef: parseRef
+    normName: normName, roots: ROOTS, analyse: analyse, parseRef: parseRef, countriesIn: countriesIn, countryCameFrom: countryCameFrom
   };
 })();

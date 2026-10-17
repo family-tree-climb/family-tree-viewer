@@ -128,6 +128,11 @@ h3 { font-size: 1.12rem; margin: 0 0 8px; }
   background: #e9e2d4; display: grid; place-items: center; color: #b3a892;
 }
 .avatar img { width: 100%; height: 100%; object-fit: cover; object-position: center 25%; }
+.avatar { position: relative; }
+.avatar img.flag { position: absolute; right: 5%; bottom: 5%; width: 42%; max-width: 44px; height: auto; object-fit: fill; border-radius: 2px;
+  box-shadow: 0 0 0 1.5px #fff, 0 1px 3px rgba(0, 0, 0, .35); }
+.pcard.compact .avatar img.flag { display: none; }
+.chip img.chipflag { height: .95em; width: auto; vertical-align: -2px; margin-right: 5px; border-radius: 1px; box-shadow: 0 0 0 1px rgba(0, 0, 0, .15); }
 .avatar svg { width: 62%; height: 62%; }
 .avatar.m { background: var(--male-soft); color: #9cb5d3; }
 .avatar.f { background: var(--female-soft); color: #d6a4b4; }

@@ -11,6 +11,8 @@ so on. The viewer reads those documents (read-only) and builds a browsable site:
 - people, stories and search pages;
 - a photo in each person's square, from a `Photos` folder next to the documents (file name = the person's
   code, e.g. `A5,12.jpg`; the person's page has an "Add a photo" button that says exactly what to do);
+- a flag in the corner of the square for an ancestor who came from another country (from an
+  `Arrived:` / `Immigration:` line, e.g. "1848, from Ireland", or a `Flag: Ireland` line);
 - a "Research notes" page listing duplicates, numbers that disagree and where each line ends.
 
 It runs entirely on the family's Windows PC from `file://`, with no server and nothing to install. It
