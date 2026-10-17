@@ -1043,7 +1043,7 @@ try {
   $secs = [int]((Get-Date) - $started).TotalSeconds
   Write-Status 'done' $total $total (",`"built`":" + (JStr $built) + ",`"changed`":$changed,`"added`":$added,`"removed`":$removed,`"failed`":$failed")
   $summary = "Checked $total documents in $secs s: $changed read ($added new), $removed removed, $failed could not be read."
-  if ($photos.Count) { $summary += " $($photos.Count) photos ($($script:PhotoMade) new or changed)."
+  if ($photos.Count) { $summary += " $($photos.Count) photos ($($script:PhotoMade) new or changed)." }
   Write-Log $summary
   Say $summary
 }
