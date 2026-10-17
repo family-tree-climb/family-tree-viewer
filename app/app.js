@@ -369,7 +369,8 @@
       (p.line ? '<span class="chip gold">' + esc(lineName(p)) + '</span>' : '') +
       (p.code ? '<span class="chip code" title="Generation ' + p.gen + ', number ' + p.pos + '">' + esc(p.code) + '</span>' : '') +
       '</div></div><div class="actions"><a class="btn primary" href="' + treeHref(p) + '">Show ' + esc(p.short.split(' ')[0]) + '’s ancestors</a>' +
-      (p.doc ? '<button class="btn" id="printbtn">Print</button>' : '') + '</div></div>';
+      (photoName(p) ? '<button class="btn" id="photobtn" type="button" aria-expanded="false" aria-controls="photohelp">' + (p.photoFile ? 'Change photo' : 'Add a photo') + '</button>' : '') +
+      (p.doc ? '<button class="btn" id="printbtn">Print</button>' : '') + '</div></div>' + photoHelp(p);
 
     if (p.doc && p.doc.lastError) {
       html += '<div class="notice">The Word document could not be read at the last update (' + esc(p.doc.lastError) + '). The version from ' + esc(fmtDate(p.doc.mtime)) + ' is shown until it can be read again.</div>';
@@ -410,9 +411,54 @@
       Array.prototype.forEach.call(main.querySelectorAll('[data-tab]'), function (x) { x.classList.toggle('on', x.getAttribute('data-tab') === 'story'); });
       setTimeout(function () { window.print(); }, 60);
     };
+    var phb = document.getElementById('photobtn'), phh = document.getElementById('photohelp');
+    if (phb && phh) {
+      phb.onclick = function () {
+        phh.hidden = !phh.hidden;
+        phb.setAttribute('aria-expanded', String(!phh.hidden));
+        if (!phh.hidden) phh.scrollIntoView({ block: 'nearest' });
+      };
+      Array.prototype.forEach.call(phh.querySelectorAll('[data-copytext]'), function (b) {
+        var label = b.textContent;
+        b.onclick = function () { copyText(b.getAttribute('data-copytext'), function () { b.textContent = 'Copied'; setTimeout(function () { b.textContent = label; }, 2000); }); };
+      });
+    }
     var av = main.querySelector('.person-head .avatar img');
     if (av) av.parentNode.onclick = function () { openLightbox([{ img: p.photo, caption: p.name }], 0); };
     showTab(p, tab, pics, mentions);
+  }
+
+  // ------------------------------------------------------------------ PHOTOS
+  // A photo for the square: a picture in the Photos folder of the life-history folder whose file name is
+  // the person's number (genealogy.js matches them; tools\Update-FamilyTree.ps1 makes the copies).
+  function photoName(p) { return p && !p.pseudo ? (p.code || (p.root ? p.key : '')) : ''; }
+  function photosFolder() {
+    var f = M.data.photosFolder || {};
+    return { path: f.path || ((M.data.source || '') + '\\Photos'), exists: f.exists === true || (M.data.photos || []).length > 0 };
+  }
+  function photoHelp(p) {
+    var name = photoName(p);
+    if (!name) return '';
+    var first = esc(p.short.split(' ')[0]), folder = photosFolder();
+    var where = folder.path + '\\' + name;
+    var parent = folder.path.replace(/\\[^\\]*$/, '');
+    var html = '<div class="card photohelp" id="photohelp" hidden><h2>' + (p.photoFile ? 'Change the photo of ' : 'Add a photo of ') + first + '</h2>';
+    if (p.photoFile) html += '<p>The photo now comes from <b>' + esc(p.photoFile) + '</b>. To change it, put another picture in its place with the same name (or delete it to have no photo).</p>';
+    else if (p.photo) html += '<p>Right now the photo is a picture from the life history. A photo you put in the Photos folder is shown instead.</p>';
+    html += '<ol class="helpsteps">';
+    if (!folder.exists) {
+      html += '<li><b>Only the first time:</b> make a folder named <b>Photos</b> in the life history folder (<span class="path">' + esc(parent) + '</span>). ' +
+        'Open that folder, right-click an empty spot, choose <i>New</i> \u2192 <i>Folder</i> and type <b>Photos</b>.</li>';
+    }
+    html += '<li>Save the photo in the <b>Photos</b> folder with the name <b>' + esc(name) + '</b>. ' +
+      '<p class="photo-copy"><button class="btn" type="button" data-copytext="' + esc(where) + '">Copy where to save</button> ' +
+      '<button class="btn" type="button" data-copytext="' + esc(name) + '">Copy the name</button></p>' +
+      '<p class="small muted">Saving a picture from an email or a web page (<i>Save as\u2026</i>): click <b>Copy where to save</b>, paste it into the <i>File name</i> box and click <i>Save</i>. ' +
+      'A picture already on the computer: copy it into the Photos folder, then rename it to <b>' + esc(name) + '</b> (the ending, such as .jpg, stays).</p></li>' +
+      '<li>Open the <b>Family Tree</b> icon on the desktop again. The photo appears in ' + first + '\u2019s square, in the tree and everywhere else.</li></ol>' +
+      '<p class="small muted" style="margin-bottom:0">JPEG and PNG pictures work. Words may follow the number, for example <i>' + esc(name) + ' at 20.jpg</i>. ' +
+      'The square shows the middle of the picture and keeps the top, so faces are not cut off; a picture cropped close around the face looks best.</p></div>';
+    return html;
   }
 
   function showTab(p, tab, pics, mentions) {
@@ -805,6 +851,16 @@
     html += section('Documents that could not be read', n.unreadable.length, 'These will be tried again at the next update. A document that is open in Word is normally fine.', n.unreadable.map(function (d) {
       return esc(d.path) + ' — <span class="muted">' + esc(d.err || d.lastError) + (d.lastError ? ' (the version from ' + esc(fmtDate(d.mtime)) + ' is shown until then)' : '') + '</span>';
     }));
+    var photoNotes = n.photos || [];
+    if (photoNotes.length) html += section('Photos that are not shown', photoNotes.length, 'Pictures in the Photos folder whose file name does not lead to one person, or that could not be read.', photoNotes.map(function (x) {
+      var who = x.person ? byKey(x.person) : null;
+      var whoLink = who ? '<a href="' + personHref(who) + '">' + esc(who.short) + '</a>' : '';
+      var why = x.problem === 'no number' ? 'the file name does not start with a person\u2019s number' :
+        x.problem === 'nobody' ? 'there is no one with the number <b>' + esc(x.code) + '</b> in the tree' :
+        x.problem === 'another' ? whoLink + ' has more than one photo; <b>' + esc(x.shown) + '</b> is shown (the one named by the number alone, or else the newest)' :
+        'the picture could not be read' + (whoLink ? ' (for ' + whoLink + ')' : '') + ' <span class="muted">' + esc(x.err || '') + '</span>';
+      return esc(x.path) + ' \u2014 ' + why;
+    }));
     if (n.ignored.length) html += section('Skipped on purpose', n.ignored.length, 'Listed in family-settings.js as not being about a person.', n.ignored.map(function (d) { return esc(d.path); }));
     if (reportEmail()) {
       html += '<p class="small muted" id="notes-report" style="margin:16px 0 0">Something not right? <a href="' + esc(reportMailto()) + '">Report a problem</a> ' +
@@ -848,7 +904,7 @@
       '<li>On the <b>first line</b> of the document: the name and the same number in brackets — <i>' + esc(ex.name + ' (' + ex.code + ')') + '</i>. On the <b>second line</b>: the years — <i>' + esc(ex.years) + '</i>.</li>' +
       '<li>Then, each on its own line: <i>Father:</i>, <i>Mother:</i>, <i>Descendant:</i> (the child in the line), <i>Birth:</i>, <i>Death:</i>, <i>Marriage:</i>. Put the number after a name when you know it: <i>Father: ' + esc(ex.father) + '</i>. Write <i>?</i> when a parent is not known.</li>' +
       '<li>Open the <b>Family Tree</b> icon on the desktop. New and changed documents are read by themselves (a few seconds) and the page refreshes on its own. The new person appears in the tree, joined to their parents and child.</li>' +
-      '</ol><p class="muted">Pictures in the documents appear automatically. Documents that are not about one person' + (ex.story ? ' (like “' + esc(ex.story) + '”)' : '') + ' appear under <a href="#/stories">Stories</a>.</p>' +
+      '</ol><p class="muted">Pictures in the documents appear automatically. To put a photo in a person’s square, open their page and click <b>Add a photo</b>. Documents that are not about one person' + (ex.story ? ' (like “' + esc(ex.story) + '”)' : '') + ' appear under <a href="#/stories">Stories</a>.</p>' +
       '<p class="muted" style="margin-bottom:0"><b>The numbering:</b> the father of <i>(g, n)</i> is <i>(g+1, 2n−1)</i> and the mother is <i>(g+1, 2n)</i>. ' +
       (pf && pm ? 'For example, the parents of ' + esc(ex.code) + ' are ' + esc(pf) + ' and ' + esc(pm) + '. ' : '') +
       letters + '.</p></div>' +

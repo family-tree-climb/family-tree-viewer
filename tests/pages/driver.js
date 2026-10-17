@@ -110,7 +110,7 @@
     ['facts', 'pictures', 'mentions'].forEach(function (t) { go('#/p/' + enc(k) + '/' + t); });
     go('#/tree/' + enc(k));
   });
-  var withPhoto = Object.keys(M.people).sort().filter(function (k) { return M.people[k].photo && G.resolve(k) === k; })[0];
+  var withPhoto = Object.keys(M.people).sort().filter(function (k) { return M.people[k].doc && M.people[k].doc.nimg > 0 && G.resolve(k) === k; })[0];
   if (withPhoto) {
     go('#/p/' + enc(withPhoto), function (res, next) {
       var img = document.querySelector('#main img.dimg'), lb = $('lightbox');
@@ -122,6 +122,32 @@
       next();
     });
   }
+  // the Add a photo / Change photo box, and the square photo from the Photos folder
+  var withFile = Object.keys(M.people).sort().filter(function (k) { return M.people[k].photoFile && G.resolve(k) === k; })[0];
+  var noPhoto = Object.keys(M.people).sort().filter(function (k) { return !M.people[k].photo && M.people[k].code && G.resolve(k) === k; })[0];
+  [withFile, noPhoto].forEach(function (k) {
+    if (!k) return;
+    go('#/p/' + enc(k), function (res, next) {
+      var btn = $('photobtn'), box = $('photohelp');
+      var r = { person: k, button: btn ? btn.textContent : '', hiddenFirst: !!(box && box.hidden) };
+      if (btn) btn.click();
+      r.shown = !!(box && !box.hidden);
+      r.text = box ? box.textContent.replace(/\s+/g, ' ') : '';
+      r.copyName = box ? Array.prototype.map.call(box.querySelectorAll('[data-copytext]'), function (b) { return b.getAttribute('data-copytext'); }) : [];
+      var av = document.querySelector('#main .person-head .avatar');
+      r.square = av ? getComputedStyle(av).borderRadius : '';
+      var img = av && av.querySelector('img');
+      r.img = img ? img.getAttribute('src') : '';
+      if (img) {
+        av.click();
+        var lb = $('lightbox');
+        r.enlarged = !!(lb && !lb.hidden);
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      }
+      res.photoHelp = r;
+      next();
+    });
+  });
   Object.keys(M.docs).sort().forEach(function (id) { go('#/doc/' + id); });
   go('#/p/Z9%2C9');
   go('#/tree/Z9%2C9');

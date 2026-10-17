@@ -384,4 +384,49 @@ function New-WordLockFile {
   [System.IO.File]::WriteAllBytes($full, $bytes)
 }
 
-Export-ModuleMember -Function New-TestDocx, New-CorruptDocx, New-WordLockFile, Get-TestPicture
+# A made-up photo: a plain background with a darker head-and-shoulders shape in the upper half, so a
+# test can tell top from bottom (the head is near the top). -Orientation n adds the camera's rotation
+# flag (EXIF 0x0112): 6 means "turn 90 degrees clockwise to show it upright".
+function New-TestPhoto {
+  param([Parameter(Mandatory = $true)][string]$Path, [int]$Width = 300, [int]$Height = 400, [DateTime]$Time = [DateTime]::UtcNow,
+        [int]$Orientation = 0, [switch]$Png, [switch]$Force)
+  Add-Type -AssemblyName System.Drawing
+  $full = Assert-NewFile $Path $Force
+  $bmp = New-Object System.Drawing.Bitmap($Width, $Height)
+  $g = [System.Drawing.Graphics]::FromImage($bmp)
+  try {
+    $g.Clear([System.Drawing.Color]::FromArgb(214, 196, 168))
+    $brush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(70, 52, 40))
+    $r = [int]([Math]::Min($Width, $Height) / 6)
+    $g.FillEllipse($brush, [int]($Width / 2 - $r), [int]($Height * 0.12), 2 * $r, 2 * $r)
+    $g.FillRectangle($brush, [int]($Width / 2 - 2 * $r), [int]($Height * 0.12 + 2.3 * $r), 4 * $r, $Height)
+    $brush.Dispose()
+  } finally { $g.Dispose() }
+  try {
+    if ($Orientation -gt 0) {
+      $pi = [System.Runtime.Serialization.FormatterServices]::GetUninitializedObject([System.Drawing.Imaging.PropertyItem])
+      $pi.Id = 0x0112; $pi.Type = 3; $pi.Len = 2; $pi.Value = [byte[]]@([byte]$Orientation, 0)
+      $bmp.SetPropertyItem($pi)
+    }
+    if ($Png) { $bmp.Save($full, [System.Drawing.Imaging.ImageFormat]::Png) }
+    else {
+      $codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' }
+      $ep = New-Object System.Drawing.Imaging.EncoderParameters(1)
+      $ep.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality, [long]90)
+      $bmp.Save($full, $codec, $ep)
+    }
+  } finally { $bmp.Dispose() }
+  [System.IO.File]::SetLastWriteTimeUtc($full, $Time.ToUniversalTime())
+}
+
+# The width and height of a picture file (JPEG, PNG ...), as Windows reads it.
+function Get-PictureSize([string]$Path) {
+  Add-Type -AssemblyName System.Drawing
+  $fs = [System.IO.File]::OpenRead($Path)
+  try {
+    $img = [System.Drawing.Image]::FromStream($fs)
+    try { return @($img.Width, $img.Height, ($img.PropertyIdList -contains 0x0112)) } finally { $img.Dispose() }
+  } finally { $fs.Dispose() }
+}
+
+Export-ModuleMember -Function New-TestDocx, New-CorruptDocx, New-WordLockFile, Get-TestPicture, New-TestPhoto, Get-PictureSize

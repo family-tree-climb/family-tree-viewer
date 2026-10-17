@@ -446,7 +446,7 @@
   }
 
   function build(data) {
-    var people = {}, docs = {}, stories = [], notes = { duplicates: [], codeMismatch: [], refMismatch: [], badCodes: [], unreadable: [], unmatched: [], ignored: [], warnings: [], collapse: [] };
+    var people = {}, docs = {}, stories = [], notes = { duplicates: [], codeMismatch: [], refMismatch: [], badCodes: [], unreadable: [], unmatched: [], ignored: [], warnings: [], collapse: [], photos: [] };
     aliases = {};
     var docList = (data && data.docs) || [];
     var ignore = {};
@@ -752,6 +752,9 @@
       if (p.placeholder && p.extraFacts) p.facts = p.extraFacts;
     });
 
+    // --- 8. photos from the Photos folder (they win over a picture found in the life history)
+    matchPhotos(data.photos || [], people, notes.photos);
+
     model = { people: people, docs: docs, stories: stories, notes: notes, data: data };
     return model;
   }
@@ -799,6 +802,45 @@
       });
     })(doc.b || []);
     return best;
+  }
+
+  // A picture in the Photos folder belongs to the person whose number starts its file name: "A3,2.jpg",
+  // "A3,2 John at 20.jpg" (also "A3.2", "a3,2"); a root person's by the key in the settings: "tom.jpg".
+  // When one person has several, the one named by the number alone wins, otherwise the newest.
+  var PHOTO_CODE = /^([A-Za-z])\s?(\d{1,2})\s?[,.]\s?(\d{1,5})(?!\d)/;
+  function photoTarget(name) {
+    var m = PHOTO_CODE.exec(name);
+    if (m) {
+      var k = validKey(m[1].toUpperCase(), +m[2], +m[3]);
+      return { code: m[1].toUpperCase() + m[2] + ',' + m[3], key: k ? resolve(k) : null, exact: m[0].length === name.length };
+    }
+    var low = name.toLowerCase(), hit = null;
+    Object.keys(ROOTS).forEach(function (rk) {
+      var r = rk.toLowerCase();
+      if (!hit && (low === r || low.indexOf(r + ' ') === 0)) hit = { code: rk, key: rk, exact: low === r };
+    });
+    return hit;
+  }
+  function matchPhotos(list, people, notes) {
+    var found = {};
+    list.forEach(function (ph) {
+      var name = String(ph.path).split('\\').pop().replace(/\.[^.]*$/, '').trim();
+      var t = photoTarget(name);
+      if (!t) { notes.push({ path: ph.path, problem: 'no number' }); return; }
+      if (!t.key || !people[t.key]) { notes.push({ path: ph.path, problem: 'nobody', code: t.code }); return; }
+      if (ph.err || !ph.img) { notes.push({ path: ph.path, problem: 'unreadable', person: t.key, err: ph.err || '' }); return; }
+      (found[t.key] = found[t.key] || []).push({ ph: ph, exact: t.exact });
+    });
+    Object.keys(found).forEach(function (k) {
+      var all = found[k].sort(function (a, b) {
+        return (b.exact - a.exact) || (a.ph.mtime < b.ph.mtime ? 1 : a.ph.mtime > b.ph.mtime ? -1 : 0) || (a.ph.path < b.ph.path ? -1 : 1);
+      });
+      var p = people[k], best = all[0].ph;
+      p.docPhoto = p.photo;
+      p.photo = best.img;
+      p.photoFile = best.path;
+      all.slice(1).forEach(function (x) { notes.push({ path: x.ph.path, problem: 'another', person: k, shown: best.path }); });
+    });
   }
 
   // ---------------------------------------------------------------- relationship words

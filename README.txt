@@ -40,6 +40,20 @@ IF SOMEONE DOES NOT SHOW UP
   Pictures in the documents appear automatically. Documents that are not about one person are
   listed under "Stories".
 
+A PHOTO IN A PERSON'S SQUARE
+  Every person has a square next to their name. To put a photo in it:
+  1. Open the person's page in the tree and click "Add a photo" (or "Change photo").
+     The box that opens shows the exact name to give the photo, with buttons to copy it.
+  2. Save the photo in the "Photos" folder of the life-history folder, named with the person's
+     number, for example:   A5,12.jpg
+     Words may follow the number:   A5,12 Rosalind at 20.jpg
+     (The first time, make the folder: in the life-history folder, right-click an empty spot,
+     New > Folder, and type Photos.)
+  3. Open the Family Tree icon again. The photo appears in the square, in the tree and everywhere else.
+  - JPEG and PNG pictures work. The program keeps its own smaller copy; your photo is never changed.
+  - A photo in the Photos folder is used instead of a picture from the life history.
+  - The "Notes" page lists photos it could not use (for example a number nobody has).
+
 THE NUMBERING
   The father of (generation g, number n) is (g+1, 2n-1). The mother is (g+1, 2n).
   For example, the parents of A5,12 are A6,23 (father) and A6,24 (mother).
@@ -72,7 +86,8 @@ GOING BACK TO THE PREVIOUS VERSION (only when you are asked to)
   the documents by the previous version.
 
 YOUR DOCUMENTS ARE SAFE
-  This program only READS the Word documents. It never changes, renames, moves or deletes them.
+  This program only READS the Word documents and the photos. It never changes, renames, moves or
+  deletes them.
   Everything it makes is kept inside this "Family Tree Viewer" folder.
   A program update only replaces the program's own files (the ones listed in tools\program-files.txt).
   It never touches your documents or the family settings (family-settings.js).

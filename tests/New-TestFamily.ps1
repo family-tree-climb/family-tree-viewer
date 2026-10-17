@@ -31,6 +31,11 @@
     * Shift+Enter breaks, Tabs, bold / italic / underline / superscript / subscript / strike-through,
       bigger text, tracked changes, hidden text, a bookmark, curly quotes and an accented letter
     * a Word lock file (~$...), a damaged .docx and a file that is not a Word document
+    * the Photos folder (photos for the squares): a big photo (made smaller), a newer second photo of the
+      same person (the one named by the number alone still wins), a PNG that replaces the picture found
+      in the life history, a photo with the camera's rotation flag, a photo for a place of pedigree
+      collapse (D3,8 = C3,2), one for a person without a document, a lower-case "d4,12.JPG", one for a
+      root person ("ruth.jpg"), one for a number nobody has, one without a number and a damaged one
 
   Changing a document here changes what the tests expect: run tests\Run-Tests.ps1 -UpdateSnapshot, read
   the changes in tests\expected\snapshot.json, and adjust the counts and checks in Run-Tests.ps1. The
@@ -408,4 +413,19 @@ $notes = Join-Path $Root 'Dalby\research notes.txt'
 [System.IO.File]::WriteAllText($notes, "Things to look up: Emma Lindale's parents.`r`n", (New-Object System.Text.UTF8Encoding($false)))
 [System.IO.File]::SetLastWriteTimeUtc($notes, (T '2021-02-02 10:00'))
 
-if (-not $Quiet) { Write-Host "Made $made test documents (+ 1 damaged, 1 lock file, 1 text file) in $Root" }
+# the Photos folder
+$photos = Join-Path $Root 'Photos'
+New-TestPhoto -Path (Join-Path $photos 'A2,1.jpg') -Width 1600 -Height 2000 -Time (T '2024-06-01 10:00')
+New-TestPhoto -Path (Join-Path $photos 'A2,1 older.jpg') -Width 300 -Height 400 -Time (T '2024-07-01 10:00')
+New-TestPhoto -Path (Join-Path $photos 'B2,2 Nora at 20.png') -Width 240 -Height 320 -Png -Time (T '2024-06-02 10:00')
+New-TestPhoto -Path (Join-Path $photos 'C3,1 Joseph.jpg') -Width 400 -Height 240 -Orientation 6 -Time (T '2024-06-03 10:00')
+New-TestPhoto -Path (Join-Path $photos 'D3,8.jpg') -Width 300 -Height 400 -Time (T '2024-06-04 10:00')
+New-TestPhoto -Path (Join-Path $photos 'd4,12.JPG') -Width 300 -Height 400 -Time (T '2024-06-05 10:00')
+New-TestPhoto -Path (Join-Path $photos 'ruth.jpg') -Width 300 -Height 400 -Time (T '2024-06-06 10:00')
+New-TestPhoto -Path (Join-Path $photos 'A9,1.jpg') -Width 300 -Height 400 -Time (T '2024-06-07 10:00')
+New-TestPhoto -Path (Join-Path $photos 'Family picnic.jpg') -Width 400 -Height 300 -Time (T '2024-06-08 10:00')
+$broken = Join-Path $photos 'B3,3.jpg'
+[System.IO.File]::WriteAllBytes($broken, [byte[]](1..200 | ForEach-Object { [byte](($_ * 53 + 7) % 256) }))
+[System.IO.File]::SetLastWriteTimeUtc($broken, (T '2024-06-09 10:00'))
+
+if (-not $Quiet) { Write-Host "Made $made test documents (+ 1 damaged, 1 lock file, 1 text file) and 10 photos in $Root" }

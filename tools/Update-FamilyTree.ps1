@@ -1,10 +1,11 @@
 ﻿<#
   Update-FamilyTree.ps1
   ---------------------
-  Reads the life-history Word documents (.docx) and refreshes the Family Tree Viewer.
+  Reads the life-history Word documents (.docx) and refreshes the Family Tree Viewer. The pictures in the
+  "Photos" folder of the life-history folder are read too: each becomes a smaller copy in data\media\photos.
 
   SAFETY PROMISE
-    * Every document in the life-history folder is opened READ-ONLY (and shared, so Word can keep it open).
+    * Every document and photo in the life-history folder is opened READ-ONLY (and shared, so Word can keep it open).
     * Nothing outside this viewer's own "data" folder is ever created, changed, moved or deleted.
     * The only things ever removed are this script's own old picture copies / cache files inside
       "Family Tree Viewer\data" (guarded by Assert-InsideDataFolder below).
@@ -742,11 +743,108 @@ function Convert-Docx([string]$fullPath, [string]$relPath, [string]$id, $fileInf
   return $sb.ToString()
 }
 
-function Get-DocId([string]$relPath) {
+function Get-DocId([string]$relPath, [string]$prefix = 'd') {
   $sha = [System.Security.Cryptography.SHA1]::Create()
   $h = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($relPath.ToLowerInvariant()))
   $sha.Dispose()
-  return 'd' + (($h[0..5] | ForEach-Object { $_.ToString('x2') }) -join '')
+  return $prefix + (($h[0..5] | ForEach-Object { $_.ToString('x2') }) -join '')
+}
+
+# ---------- photos for the squares (the "Photos" folder of the life-history folder) ----------
+# Each picture becomes data\media\photos\p<12 hex>.jpg (or .png when it may be see-through), turned
+# upright by the camera's rotation flag and at most $PhotoMaxSide pixels on its longest side, so a tree
+# with many photos stays quick. p<12 hex>.key remembers which version of the picture the copy was made
+# from. Which person a photo belongs to is decided in app\genealogy.js (by the number in its file name).
+$PhotoVersion = 1
+$PhotoMaxSide = 1200
+$PhotoDir = Join-Path $MediaDir 'photos'
+$PhotoExt = @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
+$GenPhotoName = '^p[0-9a-f]{12}\.(jpg|png|webp|key)(\.tmp)?$'          # data\media\photos\p1a2b3c4d5e6f.jpg / .key
+function Test-PhotoFile($f, [string]$rel) {
+  return ($rel.StartsWith('Photos\', [System.StringComparison]::OrdinalIgnoreCase) -and $PhotoExt -contains $f.Extension.ToLowerInvariant())
+}
+# Returns the photo's JSON for data.js: {"path","mtime","img","w","h"}, or {"path","mtime","err"}.
+function Convert-Photo($f, [string]$rel) {
+  $id = Get-DocId $rel 'p'
+  $keyFile = Join-Path $PhotoDir "$id.key"
+  $key = "$PhotoVersion|$($f.Length)|$($f.LastWriteTimeUtc.Ticks)|$rel"
+  $head = '{"path":' + (JStr $rel) + ',"mtime":' + (JStr ($f.LastWriteTimeUtc.ToString('yyyy-MM-ddTHH:mm:ssZ')))
+  $ticks = $f.LastWriteTimeUtc.Ticks
+  # made before from the same picture: use that copy
+  if (-not $Full -and [System.IO.File]::Exists($keyFile)) {
+    $saved = [System.IO.File]::ReadAllText($keyFile) -split "`n"
+    if ($saved.Count -ge 2 -and $saved[0] -ceq $key) {
+      $made = $saved[1].Split('|')
+      if ($made.Count -eq 3 -and $made[0] -match $GenPhotoName -and [System.IO.File]::Exists((Join-Path $PhotoDir $made[0]))) {
+        $script:PhotoKeep["$id.key"] = $true; $script:PhotoKeep[$made[0]] = $true
+        return $head + ',"img":' + (JStr "data/media/photos/$($made[0])?v=$ticks") + ',"w":' + [int]$made[1] + ',"h":' + [int]$made[2] + '}'
+      }
+    }
+  }
+  if (-not [System.IO.Directory]::Exists($PhotoDir)) { [void][System.IO.Directory]::CreateDirectory((Assert-InsideDataFolder $PhotoDir)) }
+  $ext = $f.Extension.ToLowerInvariant()
+  $ms = New-Object System.IO.MemoryStream
+  $img = $null; $bmp = $null; $outName = ''; $nw = 0; $nh = 0
+  try {
+    $fs = [System.IO.File]::Open($f.FullName, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete)
+    try { $fs.CopyTo($ms) } finally { $fs.Dispose() }
+    try {
+      $ms.Position = 0
+      $img = [System.Drawing.Image]::FromStream($ms)
+    } catch {
+      # Windows cannot read WebP pictures, but web browsers can: copied as it is
+      if ($ext -ne '.webp' -or $ms.Length -lt 12) { throw }
+      $outName = "$id.webp"
+      Remove-GeneratedFile (Join-Path $PhotoDir $outName)
+      [System.IO.File]::WriteAllBytes((Assert-InsideDataFolder (Join-Path $PhotoDir $outName)), $ms.ToArray())
+    }
+    if ($img) {
+      if ($img.PropertyIdList -contains 0x0112) {
+        $o = [int]$img.GetPropertyItem(0x0112).Value[0]
+        switch ($o) {
+          2 { $img.RotateFlip('RotateNoneFlipX') }   3 { $img.RotateFlip('Rotate180FlipNone') } 4 { $img.RotateFlip('Rotate180FlipX') }
+          5 { $img.RotateFlip('Rotate90FlipX') }     6 { $img.RotateFlip('Rotate90FlipNone') }  7 { $img.RotateFlip('Rotate270FlipX') }
+          8 { $img.RotateFlip('Rotate270FlipNone') }
+        }
+      }
+      $nw = $img.Width; $nh = $img.Height
+      if ($nw -gt $PhotoMaxSide -or $nh -gt $PhotoMaxSide) {
+        $scale = $PhotoMaxSide / [double]([Math]::Max($nw, $nh))
+        $nw = [Math]::Max(1, [int][Math]::Round($nw * $scale)); $nh = [Math]::Max(1, [int][Math]::Round($nh * $scale))
+      }
+      $png = @('.png', '.gif') -contains $ext
+      $bmp = New-Object System.Drawing.Bitmap($nw, $nh)
+      $g = [System.Drawing.Graphics]::FromImage($bmp)
+      try {
+        if (-not $png) { $g.Clear([System.Drawing.Color]::White) }
+        $g.InterpolationMode = 'HighQualityBicubic'
+        $g.PixelOffsetMode = 'HighQuality'
+        $ia = New-Object System.Drawing.Imaging.ImageAttributes
+        $ia.SetWrapMode([System.Drawing.Drawing2D.WrapMode]::TileFlipXY)     # no grey seam along the edges
+        $g.DrawImage($img, (New-Object System.Drawing.Rectangle(0, 0, $nw, $nh)), 0, 0, $img.Width, $img.Height, [System.Drawing.GraphicsUnit]::Pixel, $ia)
+        $ia.Dispose()
+      } finally { $g.Dispose() }
+      if ($png) { $outName = "$id.png" } else { $outName = "$id.jpg" }
+      Remove-GeneratedFile (Join-Path $PhotoDir $outName)       # a fresh file (never written into an existing one)
+      Save-Bitmap $bmp (Join-Path $PhotoDir $outName) (-not $png)
+    }
+  } catch {
+    $ex = $_.Exception
+    while ($ex.InnerException) { $ex = $ex.InnerException }
+    if ($ex.Message -match 'SAFETY STOP') { throw }
+    Write-Log "could not read the photo $rel : $($ex.Message)"
+    if ($ex.Message -match 'being used by another process') { $why = 'the picture was in use by another program; it will be read next time' }
+    else { $why = 'the picture could not be read (it may be damaged, or a kind of picture this program cannot show; saving it again as a JPEG should fix it)' }
+    return $head + ',"err":' + (JStr $why) + '}'
+  } finally {
+    if ($bmp) { $bmp.Dispose() }
+    if ($img) { $img.Dispose() }
+    $ms.Dispose()
+  }
+  Write-DataFile $keyFile "$key`n$outName|$nw|$nh"
+  $script:PhotoKeep["$id.key"] = $true; $script:PhotoKeep[$outName] = $true
+  $script:PhotoMade++
+  return $head + ',"img":' + (JStr "data/media/photos/$($outName)?v=$ticks") + ',"w":' + $nw + ',"h":' + $nh + '}'
 }
 
 # =====================================================================================
@@ -785,6 +883,9 @@ try {
     -not ($_.Attributes -band $hidden) -and $_.Name -ne 'desktop.ini' -and $_.Name -ne 'Thumbs.db' -and
     $_.DirectoryName -notmatch '_files(\\|$)'
   } | Sort-Object FullName)
+  # the pictures in the Photos folder are photos for the squares, not "other files"
+  $photos = @($others | Where-Object { Test-PhotoFile $_ ((Get-PlainPath $_.FullName).Substring($Source.Length + 1)) })
+  $others = @($others | Where-Object { -not (Test-PhotoFile $_ ((Get-PlainPath $_.FullName).Substring($Source.Length + 1))) })
 
   $total = $docs.Count
   Write-Status 'running' 0 $total ''
@@ -882,6 +983,30 @@ try {
     if (-not $keep.ContainsKey($mname.Substring(0, 13)) -or $mname.Length -gt 13) { Remove-MediaFolder $md }
   }
 
+  # the photos (only this program's own photo copies are ever touched)
+  $photoJson = New-Object System.Collections.Generic.List[string]
+  $script:PhotoKeep = @{}
+  $script:PhotoMade = 0
+  $photoN = 0
+  foreach ($ph in $photos) {
+    $photoN++
+    $rel = (Get-PlainPath $ph.FullName).Substring($Source.Length + 1)
+    $json = Convert-Photo $ph $rel
+    $photoJson.Add($json)
+    [void]$signature.Append("P|$json`n")
+    if ($script:PhotoMade -and ($photoN % 10) -eq 0) { Say ("  photo {0} of {1}" -f $photoN, $photos.Count) }
+  }
+  if ([System.IO.Directory]::Exists($PhotoDir)) {
+    foreach ($pf in [System.IO.Directory]::GetFiles($PhotoDir)) {
+      $pname = [System.IO.Path]::GetFileName($pf)
+      if ($pname -notmatch $GenPhotoName) { continue }
+      if (-not $script:PhotoKeep.ContainsKey($pname)) { Remove-GeneratedFile $pf }
+    }
+  }
+  $photoFolder = Join-Path $Source 'Photos'
+  $photoFolderExists = [System.IO.Directory]::Exists($photoFolder)
+  [void]$signature.Append("PF|$photoFolderExists`n")
+
   $otherJson = New-Object System.Collections.Generic.List[string]
   foreach ($o in $others) {
     $rel = (Get-PlainPath $o.FullName).Substring($Source.Length + 1)
@@ -908,6 +1033,8 @@ try {
     [void]$sb.Append(',"changed":').Append($changed).Append(',"added":').Append($added).Append(',"removed":').Append($removed)
     [void]$sb.Append(",`n`"docs`":[`n").Append(($docJson -join ",`n")).Append("`n]")
     [void]$sb.Append(",`n`"other`":[").Append(($otherJson -join ",`n")).Append(']')
+    [void]$sb.Append(",`n`"photosFolder`":{`"path`":").Append((JStr $photoFolder)).Append(',"exists":').Append($photoFolderExists.ToString().ToLower()).Append('}')
+    [void]$sb.Append(",`n`"photos`":[").Append(($photoJson -join ",`n")).Append(']')
     [void]$sb.Append(",`n`"errors`":[").Append(($errors -join ',')).Append("]};`n")
     Write-DataFile $dataFile $sb.ToString()
     Write-DataFile $stateFile "$sig|$built"
@@ -916,6 +1043,7 @@ try {
   $secs = [int]((Get-Date) - $started).TotalSeconds
   Write-Status 'done' $total $total (",`"built`":" + (JStr $built) + ",`"changed`":$changed,`"added`":$added,`"removed`":$removed,`"failed`":$failed")
   $summary = "Checked $total documents in $secs s: $changed read ($added new), $removed removed, $failed could not be read."
+  if ($photos.Count) { $summary += " $($photos.Count) photos ($($script:PhotoMade) new or changed)."
   Write-Log $summary
   Say $summary
 }

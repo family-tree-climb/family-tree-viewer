@@ -9,6 +9,8 @@ so on. The viewer reads those documents (read-only) and builds a browsable site:
 - pedigree charts;
 - a page per person, showing the life history as it was written, with its pictures, links, lists and tables;
 - people, stories and search pages;
+- a photo in each person's square, from a `Photos` folder next to the documents (file name = the person's
+  code, e.g. `A5,12.jpg`; the person's page has an "Add a photo" button that says exactly what to do);
 - a "Research notes" page listing duplicates, numbers that disagree and where each line ends.
 
 It runs entirely on the family's Windows PC from `file://`, with no server and nothing to install. It
@@ -23,6 +25,7 @@ result and rolls back automatically if anything looks wrong. It never needs a lo
 
 ```
 life-history folder\                      the family's Word documents (only ever read)
+  Photos\                                 photos for the squares, named by code (only ever read)
   Family Tree Viewer\                     this program, plus the family's own local files
     Open Family Tree.cmd                  the desktop icon: opens the tree, reads the documents, installs updates
     index.html  app\                      the web page (genealogy.js = all genealogy rules)
@@ -37,6 +40,9 @@ life-history folder\                      the family's Word documents (only ever
   count; see `family-settings.example.js`.
 - **Reading.** `Update-FamilyTree.ps1` converts each changed `.docx` into JSON blocks. It skips documents
   it has already read, so a normal run takes a few seconds. It writes only inside `data\`.
+- **Photos.** `Update-FamilyTree.ps1` also makes a smaller, upright copy of each picture in `Photos\` (in
+  `data\media\photos\`, also incremental) and lists them in `data.js`. `genealogy.js` gives each photo to the
+  person whose code starts its file name; it wins over a picture found in the person's document.
 - **Building.** `app/genealogy.js` turns the documents into people, links, aliases and notes in the
   browser. `app/render.js` shows a document as it was written. `app/app.js` contains the pages.
 

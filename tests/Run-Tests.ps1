@@ -25,7 +25,8 @@
               tools\Update-FamilyTree.ps1 on the documents
     snapshot  headless Chrome builds the family model; it must equal tests\expected\snapshot.json
     checks    the things the test documents are there to prove (who is where, notes, links, lists ...)
-    media     the pictures copied out of the documents (as they are, and cropped)
+    media     the pictures copied out of the documents (as they are, and cropped), and the photo copies
+              of the Photos folder (smaller, upright)
     pages     every page of the viewer, with clicks on its controls: no script error, nothing broken
     settings  family-settings.js missing or broken: a friendly card, no script error
     reload    data\status.js with another program version: the open page reloads exactly once
@@ -337,6 +338,9 @@ Invoke-Stage 'build' {
   $errs = @($data.errors)
   Check 'data.js: one read error, for the damaged document' ($errs.Count -eq 1 -and $errs[0].path -eq 'Carrow\C4,1 Carrow Isaac.docx' -and $errs[0].msg -match 'damaged') (($errs | ForEach-Object { "$($_.path): $($_.msg)" }) -join ' | ')
   Check 'data.js: the text file is listed as another file' (@($data.other).Count -eq 1 -and @($data.other)[0].path -eq 'Dalby\research notes.txt') ((@($data.other) | ForEach-Object { $_.path }) -join ', ')
+  $ph = @($data.photos); $phErr = @($ph | Where-Object { $_.err })
+  Check 'data.js: 10 photos from the Photos folder, 1 could not be read' ($ph.Count -eq 10 -and $phErr.Count -eq 1 -and $phErr[0].path -eq 'Photos\B3,3.jpg') "$($ph.Count) photos; not read: $(($phErr | ForEach-Object { $_.path }) -join ', ')"
+  Check 'data.js: the Photos folder is there' ($data.photosFolder.exists -eq $true -and $data.photosFolder.path -eq (Join-Path $SnapSource 'Photos')) ($data.photosFolder | ConvertTo-Json -Compress)
   $script:BuildOk = $true
 }
 if (($Run['snapshot'] -or $Run['pages'] -or $Run['settings'] -or $Run['reload'] -or $Run['compare'] -or $Run['media']) -and -not $script:BuildOk) {
@@ -455,7 +459,22 @@ Invoke-Stage 'checks' {
   Check 'B2,1: the document without a code is matched by name and years' ($x.doc -eq 'Brennan\Brennan Patrick.docx' -and (DocOf 'Brennan\Brennan Patrick.docx').matchedByName -eq $true) "$($x.doc)"
   Check 'notes: the match by name' (@($NoteMap.unmatched | Where-Object { $_.matched -eq 'B2,1' }).Count -eq 1)
   $x = Person 'B2,2'
-  Check 'B2,2: the picture above the first line is the photo, the title is still read' ($x.name -eq 'Nora Quinn' -and $x.years -eq "1898$($Dash)1980" -and $x.photo -eq 'media:Brennan\B2,2 Quinn Nora.docx#1.png?v=mtime') "$($x.name) | $($x.photo)"
+  Check 'B2,2: the picture above the first line is the photo, the title is still read' ($x.name -eq 'Nora Quinn' -and $x.years -eq "1898$($Dash)1980" -and $x.docPhoto -eq 'media:Brennan\B2,2 Quinn Nora.docx#1.png?v=mtime') "$($x.name) | $($x.docPhoto)"
+  Check 'B2,2: a photo in the Photos folder wins over the picture in the life history' ($x.photoFile -eq 'Photos\B2,2 Nora at 20.png' -and $x.photo -eq 'photo:Photos\B2,2 Nora at 20.png?v=mtime') "$($x.photoFile) | $($x.photo)"
+  Check 'photos: A2,1 has two; the one named by the number alone wins over the newer one' ((Person 'A2,1').photoFile -eq 'Photos\A2,1.jpg') (Person 'A2,1').photoFile
+  Check 'photos: the camera-rotated photo is for C3,1' ((Person 'C3,1').photoFile -eq 'Photos\C3,1 Joseph.jpg') (Person 'C3,1').photoFile
+  Check 'photos: D3,8.jpg goes to C3,2 (the same person, pedigree collapse)' ((Person 'C3,2').photoFile -eq 'Photos\D3,8.jpg' -and -not (Person 'D3,8')) (Person 'C3,2').photoFile
+  Check 'photos: "d4,12.JPG" (small letter, capital ending) for D4,12, who has no document' ((Person 'D4,12').photoFile -eq 'Photos\d4,12.JPG' -and (Person 'D4,12').placeholder -eq $true) (Person 'D4,12').photoFile
+  Check 'photos: "ruth.jpg" for the root person ruth' ((Person 'ruth').photoFile -eq 'Photos\ruth.jpg') (Person 'ruth').photoFile
+  Check 'photos: a photo adds no one to the tree (A9,1)' (-not (Person 'A9,1'))
+  $pn = @($NoteMap.photos)
+  $pnText = ($pn | ForEach-Object { "$($_.path):$($_.problem)" }) -join ', '
+  Check 'notes: the 4 photos that are not shown, each with its reason' ($pn.Count -eq 4 -and
+    @($pn | Where-Object { $_.path -eq 'Photos\A9,1.jpg' -and $_.problem -eq 'nobody' -and $_.code -eq 'A9,1' }).Count -eq 1 -and
+    @($pn | Where-Object { $_.path -eq 'Photos\Family picnic.jpg' -and $_.problem -eq 'no number' }).Count -eq 1 -and
+    @($pn | Where-Object { $_.path -eq 'Photos\B3,3.jpg' -and $_.problem -eq 'unreadable' -and $_.person -eq 'B3,3' }).Count -eq 1 -and
+    @($pn | Where-Object { $_.path -eq 'Photos\A2,1 older.jpg' -and $_.problem -eq 'another' -and $_.shown -eq 'Photos\A2,1.jpg' }).Count -eq 1) $pnText
+  Check 'photos: B3,3 (damaged photo) keeps the silhouette' (-not (Person 'B3,3').photo)
   Check 'B4,5 / B4,6: parents named without codes' ((Person 'B4,5').name -eq 'Daniel Quinn' -and (Person 'B4,5').years -eq "1840$($Dash)1901" -and (Person 'B4,6').name -eq 'Catherine Walsh')
   Check 'C1,1 / D1,2: people from the settings' ((Person 'C1,1').name -eq 'Walter James Carrow' -and (Person 'C1,1').years -eq "1925$($Dash)1990" -and (Person 'D1,2').name -eq 'Edna Mae Dalby')
   Check 'ruth: her parents C1,1 and D1,2 (a double line)' ((Person 'ruth').father -eq 'C1,1' -and (Person 'ruth').mother -eq 'D1,2' -and (Person 'C2,1').relation -eq "Ruth's grandfather")
@@ -508,8 +527,32 @@ Invoke-Stage 'media' {
   $w = ($b2[16] -shl 24) -bor ($b2[17] -shl 16) -bor ($b2[18] -shl 8) -bor $b2[19]
   $hgt = ($b2[20] -shl 24) -bor ($b2[21] -shl 16) -bor ($b2[22] -shl 8) -bor $b2[23]
   Check 'the cropped picture is 10% smaller on every side (32 x 48)' ($w -eq 32 -and $hgt -eq 48) "$w x $hgt"
-  $dirs = @([IO.Directory]::GetDirectories((Join-Path $Viewer 'data\media')))
+  $dirs = @([IO.Directory]::GetDirectories((Join-Path $Viewer 'data\media')) | Where-Object { [IO.Path]::GetFileName($_) -ne 'photos' })
   Check 'two documents have pictures' ($dirs.Count -eq 2) (($dirs | ForEach-Object { [IO.Path]::GetFileName($_) }) -join ', ')
+
+  # the photo copies: smaller, upright, PNG stays PNG, one .key each; a second update leaves them alone
+  $photoDir = Join-Path $Viewer 'data\media\photos'
+  function PhotoCopy([string]$rel) {
+    $ph = @($data.photos | Where-Object { $_.path -eq $rel })[0]
+    if (-not $ph -or -not $ph.img) { return $null }
+    return Join-Path $Viewer ($ph.img.Split('?')[0].Replace('/', '\'))
+  }
+  $big = PhotoCopy 'Photos\A2,1.jpg'
+  $sz = if ($big -and [IO.File]::Exists($big)) { Get-PictureSize $big } else { @(0, 0, $false) }
+  Check 'photos: a 1600 x 2000 photo is made 960 x 1200' ($sz[0] -eq 960 -and $sz[1] -eq 1200 -and $big.EndsWith('.jpg')) "$($sz[0]) x $($sz[1]) $big"
+  $rot = PhotoCopy 'Photos\C3,1 Joseph.jpg'
+  $sz = if ($rot -and [IO.File]::Exists($rot)) { Get-PictureSize $rot } else { @(0, 0, $true) }
+  Check 'photos: the camera-rotated 400 x 240 photo is turned upright (240 x 400, no rotation flag left)' ($sz[0] -eq 240 -and $sz[1] -eq 400 -and -not $sz[2]) "$($sz[0]) x $($sz[1]), flag: $($sz[2])"
+  $ph = @($data.photos | Where-Object { $_.path -eq 'Photos\C3,1 Joseph.jpg' })[0]
+  Check 'photos: data.js has the upright size' ($ph.w -eq 240 -and $ph.h -eq 400) "$($ph.w) x $($ph.h)"
+  $png = PhotoCopy 'Photos\B2,2 Nora at 20.png'
+  Check 'photos: a PNG stays a PNG' ($png -and $png.EndsWith('.png') -and [IO.File]::Exists($png)) "$png"
+  $copies = @([IO.Directory]::GetFiles($photoDir))
+  Check 'photos: 9 copies and 9 .key files, nothing else' (@($copies | Where-Object { $_ -match '\\p[0-9a-f]{12}\.(jpg|png)$' }).Count -eq 9 -and @($copies | Where-Object { $_ -match '\\p[0-9a-f]{12}\.key$' }).Count -eq 9 -and $copies.Count -eq 18) (($copies | ForEach-Object { [IO.Path]::GetFileName($_) }) -join ', ')
+  $before = @{}; foreach ($f in $copies) { $before[$f] = [IO.File]::GetLastWriteTimeUtc($f).Ticks }
+  $code = Invoke-PsFile (Join-Path $Viewer 'tools\Update-FamilyTree.ps1') @('-Quiet', '-Source', $SnapSource) 'media-second-update'
+  $same = $true; foreach ($f in $copies) { if (-not [IO.File]::Exists($f) -or [IO.File]::GetLastWriteTimeUtc($f).Ticks -ne $before[$f]) { $same = $false } }
+  Check 'photos: a second update keeps the copies as they are' ($code -eq 0 -and $same) "exit $code"
 }
 
 # ================================================================ pages
@@ -538,6 +581,13 @@ Invoke-Stage 'pages' {
   Check 'People: sorting and filters work' (@((Res '#/people').people).Count -ge 8) ((@((Res '#/people').people)) -join ' | ')
   $lb = @($res | Where-Object { $_.lightbox })[0]
   Check 'the picture viewer opens and closes' ($lb -and $lb.lightbox -eq 'opened, closed') $(if ($lb) { $lb.lightbox } else { 'no person with a photo' })
+  $phr = @($res | Where-Object { $_.photoHelp } | ForEach-Object { $_.photoHelp })
+  $withFile = @($phr | Where-Object { $_.button -eq 'Change photo' })[0]
+  $without = @($phr | Where-Object { $_.button -eq 'Add a photo' })[0]
+  Check 'person page: "Change photo" opens the box, which names the photo file' ($withFile -and $withFile.hiddenFirst -and $withFile.shown -and $withFile.text -match 'The photo now comes from Photos\\' -and $withFile.enlarged) ($withFile | ConvertTo-Json -Compress)
+  Check 'person page: "Add a photo" gives the name and where to save it' ($without -and $without.shown -and @($without.copyName).Count -eq 2 -and @($without.copyName)[1] -eq $without.person -and @($without.copyName)[0] -eq (Join-Path (Join-Path $SnapSource 'Photos') $without.person) -and $without.text -notmatch 'Only the first time') ($without | ConvertTo-Json -Compress)
+  Check 'person page: the photo is a square (corners only slightly rounded)' ($withFile -and $withFile.square -and $withFile.square -notmatch '50%') $(if ($withFile) { $withFile.square } else { '' })
+  Check 'person page: the square shows the photo copy' ($withFile -and $withFile.img -match '^data/media/photos/p[0-9a-f]{12}\.(jpg|png)\?v=\d+$') $(if ($withFile) { $withFile.img } else { '' })
   $code = @($res | Where-Object { $_.landedOn })[0]
   Check 'a number typed in the search goes to that person' ($code -and $code.landedOn -like '#/p/*') $(if ($code) { $code.landedOn } else { '' })
   $sb = @($res | Where-Object { $_.searchBox })[0]
@@ -661,6 +711,22 @@ Invoke-Stage 'e2e' {
   Check 'removed 1 document: gone from data.js and its cache' ($c -eq 0 -and $st.removed -eq 1 -and -not $t.Contains('B2,2 Quinn Nora') -and -not [IO.File]::Exists((Join-Path $data "cache\$noraId.json"))) "exit $c, removed $($st.removed)"
   Check 'removed: its generated pictures are deleted' (@([IO.Directory]::GetFiles($noraMedia) | Where-Object { [IO.Path]::GetFileName($_) -match '^\d+\.' }).Count -eq 0)
   Check 'removed: files a person put in data\ are kept' ([IO.File]::Exists((Join-Path $noraMedia 'keep me.txt')) -and [IO.File]::Exists((Join-Path $data 'cache\My notes.docx')) -and [IO.File]::Exists((Join-Path $data 'media\Family photos\scan1.jpg')))
+
+  # photos: one replaced by a new picture, one removed, one added; a file a person put in the photo copies is kept
+  function PhotoOf([string]$rel) { return @((Read-JsObject (Join-Path $data 'data.js')).photos | Where-Object { $_.path -eq $rel })[0] }
+  $old = PhotoOf 'Photos\ruth.jpg'
+  $gone = PhotoOf 'Photos\D3,8.jpg'
+  $goneCopy = Join-Path $view ($gone.img.Split('?')[0].Replace('/', '\'))
+  Write-TestFile (Join-Path $data 'media\photos\my crop.jpg') 'pretend photo'
+  New-TestPhoto -Path (Join-Path $root 'Photos\ruth.jpg') -Force -Width 500 -Height 500 -Time $now.AddMinutes(-15)
+  [IO.File]::Delete((Assert-InsideOut (Join-Path $root 'Photos\D3,8.jpg')))
+  New-TestPhoto -Path (Join-Path $root 'Photos\A3,4 Rose.jpg') -Width 200 -Height 300 -Time $now.AddMinutes(-14)
+  $c = Update 'photos'
+  $new = PhotoOf 'Photos\ruth.jpg'
+  Check 'photos: a replaced photo is made again (new size, new address)' ($c -eq 0 -and $new.w -eq 500 -and $new.h -eq 500 -and $new.img -ne $old.img) "exit $c; $($new.w) x $($new.h)"
+  Check 'photos: a removed photo is gone, with its copy' (-not (PhotoOf 'Photos\D3,8.jpg') -and -not [IO.File]::Exists($goneCopy)) $goneCopy
+  Check 'photos: an added photo is in' ((PhotoOf 'Photos\A3,4 Rose.jpg').w -eq 200)
+  Check 'photos: a file a person put among the photo copies is kept' ([IO.File]::Exists((Join-Path $data 'media\photos\my crop.jpg')))
 
   # damaged, empty, lock file
   New-CorruptDocx -Path (Join-Path $root 'Carrow\C5,1 Broken Two.docx') -Time $now.AddMinutes(-10)

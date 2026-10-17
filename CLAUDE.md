@@ -111,6 +111,18 @@ first.
     `?v=<mtime ticks>`. `-Open` opens the browser before waiting for the lock.
   - The folder walk uses `\\?\` paths, never follows links and skips any copy of the viewer.
   - It holds the lock `Local\FamilyTreeViewerUpdate` while it runs.
+- **Photos (`<documents>\Photos\`, since 1.1.0).**
+  - `Update-FamilyTree.ps1` reads every `.jpg/.jpeg/.png/.gif/.bmp/.webp` under `Photos\` (read-only, never
+    creates the folder) and writes `data\media\photos\p<12 hex>.jpg|.png` (upright by the EXIF rotation
+    flag, at most 1200 px; WebP copied as it is) plus `p<12 hex>.key`. It deletes only names matching
+    `$GenPhotoName`. These pictures are left out of `data.other`.
+  - `data.js` gets `photosFolder: { path, exists }` and `photos: [{ path, mtime, img, w, h } | { path, mtime, err }]`.
+    Their outcome is part of the build signature. `$PhotoVersion` plays the role of `$BuilderVersion` for photos.
+  - `genealogy.js` (`matchPhotos`) gives a photo to the person whose code starts the file name (a root by its
+    key, e.g. `tom.jpg`), through aliases. The name that is only the code wins, otherwise the newest. It
+    sets `p.photo`, `p.photoFile` and keeps the document's picture in `p.docPhoto`. Unused photos go to
+    `notes.photos` (`no number`, `nobody`, `unreadable`, `another`).
+  - The person page's "Add a photo" / "Change photo" button (`photobtn`, box `photohelp`) explains the steps.
 - **`$BuilderVersion`** (in Update-FamilyTree.ps1) is the data-format version, currently 4. Raise it only
   when the JSON a document turns into changes. Every document is then re-read once.
 - **`app/genealogy.js`** (runs in the browser) holds all the genealogy rules:
@@ -341,7 +353,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tests\Run-Tests.ps1 [-Out <f
   is fictional. Never add a real person, place or document text.
 - **The page tests rely on element ids in app.js:** main, statusbar, lightbox, searchform, searchinput,
   psort, pline, pq, pdocs, pletters, plist, program-version, reportbtn, copyreport, reporttext,
-  notes-report and settings-problem. Renaming them breaks the tests.
+  notes-report, settings-problem, photobtn and photohelp. Renaming them breaks the tests.
 - **Other tools:**
   - `tools\Check-Tree.ps1 [-Viewer <folder>]` prints `{version, built, docs, personDocs, peopleKnown,
     people, roots, errors, settingsProblem, buildError, loadErrors}`. Exit codes: 0 healthy, 1 build

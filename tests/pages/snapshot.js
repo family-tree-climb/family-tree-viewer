@@ -16,7 +16,8 @@
    Only things that are the same on every computer are written: no file sizes (zip compression may
    differ), no "built" time, no folder names outside the documents folder. Picture addresses are
    written as "media:<document>#<file>", plus "?v=mtime" when the cache-busting number equals the
-   document's last-changed time. Nothing here changes any file. */
+   document's last-changed time; photo copies as "photo:<file in the Photos folder>", plus "?v=mtime"
+   in the same way. Nothing here changes any file. */
 (function () {
   'use strict';
   var out = document.getElementById('out');
@@ -52,9 +53,16 @@
       if (isNaN(ms)) return '';
       return String((BigInt(ms) + 62135596800000n) * 10000n);
     }
+    var photoByCopy = {};
+    (D.photos || []).forEach(function (ph) { if (ph.img) photoByCopy[String(ph.img).split('?')[0]] = ph; });
     function media(u) {
       if (!u) return u;
-      return String(u).replace(/data\/media\/(d[0-9a-f]{12})\/([^?"]+)(?:\?v=(\d+))?/g, function (all, id, file, v) {
+      return String(u).replace(/data\/media\/photos\/(p[0-9a-f]{12}\.[a-z]+)(?:\?v=(\d+))?/g, function (all, file, v) {
+        var ph = photoByCopy['data/media/photos/' + file];
+        var s = 'photo:' + (ph ? ph.path : 'UNKNOWN PHOTO ' + file);
+        if (v) s += (ph && v === ticks(ph.mtime)) ? '?v=mtime' : '?v=' + v;
+        return s;
+      }).replace(/data\/media\/(d[0-9a-f]{12})\/([^?"]+)(?:\?v=(\d+))?/g, function (all, id, file, v) {
         var d = docById[id];
         var s = 'media:' + (d ? d.path : 'UNKNOWN DOCUMENT ' + id) + '#' + file;
         if (v) s += (d && v === ticks(d.mtime)) ? '?v=mtime' : '?v=' + v;
@@ -102,7 +110,7 @@
         otherDocs: p.docs.filter(function (d) { return d !== p.doc; }).map(function (d) { return d.path; }),
         alsoAt: p.alsoAt,
         father: G.resolve(G.fatherKey(k)), mother: G.resolve(G.motherKey(k)), child: G.resolve(G.childKey(k)), spouse: G.resolve(G.spouseKey(k)),
-        photo: media(p.photo),
+        photo: media(p.photo), photoFile: p.photoFile, docPhoto: media(p.docPhoto),
         facts: p.facts,
         otherSpouses: refs(p.otherSpouses), otherChildren: refs(p.otherChildren), siblings: refs(p.siblings),
         events: (p.events || []).map(function (e) { return e.year + (e.approx ? ' (about)' : '') + ' ' + (e.label || '-') + ': ' + e.text; }),
@@ -142,6 +150,7 @@
     var known = keys.filter(function (k) { var p = M.people[k]; return G.resolve(k) === k && (p.doc || p.root || p.nameSource > 0); });
     var summary = {
       documents: (D.docs || []).length, readErrors: (D.errors || []).length, otherFiles: (D.other || []).length,
+      photos: (D.photos || []).length, withPhoto: keys.filter(function (k) { return M.people[k].photo; }).length,
       places: keys.length, knownPeople: known.length,
       withLifeHistory: keys.filter(function (k) { return M.people[k].doc && !M.people[k].root; }).length,
       aliases: aliases.length, stories: (M.stories || []).length, builder: D.builder
@@ -170,7 +179,9 @@
     section('docs', docs);
     L.push(' "stories": ' + J((M.stories || []).map(function (d) { return d.path; })) + ',');
     section('notes', notes, true);
-    section('data', [['errors', (D.errors || []).map(function (e) { return canon(e); })], ['other', (D.other || []).map(function (o) { return o.path; })]], true);
+    section('data', [['errors', (D.errors || []).map(function (e) { return canon(e); })], ['other', (D.other || []).map(function (o) { return o.path; })],
+      ['photosFolder', [D.photosFolder ? { exists: D.photosFolder.exists, inSource: D.photosFolder.path === D.source + '\\Photos' } : null]],
+      ['photos', (D.photos || []).map(function (ph) { return canon(ph); })]], true);
     section('blocks', blocks, true, true);
     L.push('}');
     return L.join('\n');
