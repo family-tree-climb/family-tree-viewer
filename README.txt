@@ -55,12 +55,12 @@ A PHOTO IN A PERSON'S SQUARE
   - The "Notes" page lists photos it could not use (for example a number nobody has).
 
 A FLAG FOR AN ANCESTOR WHO CAME FROM ANOTHER COUNTRY
-  Write a line at the top of the life history (with Birth:, Death: and the others), for example:
-       Arrived: 1848, from County Cork, Ireland to New York
-  (Immigration:, Emigration: and Arrival: work the same.) The flag of the country after "from"
-  appears in the corner of the person's square, and "Came from Ireland" on their page.
-  Or name the flag directly:     Flag: Ireland        (Flag: none   shows no flag)
-  The "Notes" page lists arrival lines that do not name a country the program knows.
+  Write a line at the top of the life history (with Birth:, Death: and the others):
+       Flag: Ireland
+  Save it and open the Family Tree icon again. The flag appears in the corner of the person's
+  square, and "Came from Ireland" on their page. Delete the line to take the flag away.
+  The person's page has an "Add a flag" button with the same steps and the list of countries.
+  The "Notes" page lists Flag: lines with a country the program has no flag for.
 
 THE NUMBERING
   The father of (generation g, number n) is (g+1, 2n-1). The mother is (g+1, 2n).

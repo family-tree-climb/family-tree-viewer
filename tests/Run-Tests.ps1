@@ -475,12 +475,11 @@ Invoke-Stage 'checks' {
     @($pn | Where-Object { $_.path -eq 'Photos\B3,3.jpg' -and $_.problem -eq 'unreadable' -and $_.person -eq 'B3,3' }).Count -eq 1 -and
     @($pn | Where-Object { $_.path -eq 'Photos\A2,1 older.jpg' -and $_.problem -eq 'another' -and $_.shown -eq 'Photos\A2,1.jpg' }).Count -eq 1) $pnText
   Check 'photos: B3,3 (damaged photo) keeps the silhouette' (-not (Person 'B3,3').photo)
-  Check 'flags: "from Kent, England to New York" is England' ((Person 'D4,11').flag -eq 'gb-eng England (immigration)') (Person 'D4,11').flag
-  Check 'flags: "to New England from Wales" is Wales, not England' ((Person 'C3,3').flag -eq 'gb-wls Wales (immigration)') (Person 'C3,3').flag
-  Check 'flags: "Flag: Irish" is Ireland' ((Person 'B2,2').flag -eq 'ie Ireland (flag)') (Person 'B2,2').flag
+  Check 'flags: "Flag: Irish" is Ireland' ((Person 'B2,2').flag -eq 'ie Ireland (Flag: Irish)') (Person 'B2,2').flag
+  Check 'flags: an Immigration: line alone gives no flag (nothing is guessed)' (-not (Person 'D4,11').flag -and -not (Person 'C3,3').flag -and @((Person 'D4,11').facts.immigration).Count -eq 1) "$((Person 'D4,11').flag) | $((Person 'C3,3').flag)"
   $fn = @($NoteMap.flags)
-  Check 'flags: "Arrived: 1859 at New Orleans" names no country: no flag, one note' (-not (Person 'D3,5').flag -and $fn.Count -eq 1 -and $fn[0].person -eq 'D3,5' -and $fn[0].value -eq '1859 at New Orleans') (($fn | ConvertTo-Json -Compress))
-  Check 'flags: only these three people have a flag' (@($PeopleMap.PSObject.Properties | Where-Object { $_.Value.flag }).Count -eq 3) ((@($PeopleMap.PSObject.Properties | Where-Object { $_.Value.flag } | ForEach-Object { $_.Name })) -join ', ')
+  Check 'flags: "Flag: Atlantis" is no country: no flag, one note' (-not (Person 'D3,5').flag -and $fn.Count -eq 1 -and $fn[0].person -eq 'D3,5' -and $fn[0].value -eq 'Atlantis') (($fn | ConvertTo-Json -Compress))
+  Check 'flags: only B2,2 has a flag' (@($PeopleMap.PSObject.Properties | Where-Object { $_.Value.flag }).Count -eq 1) ((@($PeopleMap.PSObject.Properties | Where-Object { $_.Value.flag } | ForEach-Object { $_.Name })) -join ', ')
   Check 'B4,5 / B4,6: parents named without codes' ((Person 'B4,5').name -eq 'Daniel Quinn' -and (Person 'B4,5').years -eq "1840$($Dash)1901" -and (Person 'B4,6').name -eq 'Catherine Walsh')
   Check 'C1,1 / D1,2: people from the settings' ((Person 'C1,1').name -eq 'Walter James Carrow' -and (Person 'C1,1').years -eq "1925$($Dash)1990" -and (Person 'D1,2').name -eq 'Edna Mae Dalby')
   Check 'ruth: her parents C1,1 and D1,2 (a double line)' ((Person 'ruth').father -eq 'C1,1' -and (Person 'ruth').mother -eq 'D1,2' -and (Person 'C2,1').relation -eq "Ruth's grandfather")
@@ -596,6 +595,9 @@ Invoke-Stage 'pages' {
   Check 'person page: the square shows the photo copy' ($withFile -and $withFile.img -match '^data/media/photos/p[0-9a-f]{12}\.(jpg|png)\?v=\d+$') $(if ($withFile) { $withFile.img } else { '' })
   $fl = @($res | Where-Object { $_.flagShown } | ForEach-Object { $_.flagShown })[0]
   Check 'person page: the flag in the corner of the square and the "Came from" chip' ($fl -and $fl.inSquare -and $fl.chip -match '^Came from ' -and $fl.loaded) ($fl | ConvertTo-Json -Compress)
+  Check 'person page: "Change flag" opens the box, which names the Flag: line and the countries' ($fl -and $fl.button -eq 'Change flag' -and $fl.boxShown -and $fl.boxText -match 'Flag: Irish' -and $fl.boxText -match 'Ireland, Isle of Man') ($fl | ConvertTo-Json -Compress)
+  $nf = @($res | Where-Object { $_.flagButton } | ForEach-Object { $_.flagButton })[0]
+  Check 'person page: "Add a flag" for someone with a life history and no flag' ($nf -and $nf.button -eq 'Add a flag' -and @($nf.copy) -contains 'Flag: ') ($nf | ConvertTo-Json -Compress)
   $code = @($res | Where-Object { $_.landedOn })[0]
   Check 'a number typed in the search goes to that person' ($code -and $code.landedOn -like '#/p/*') $(if ($code) { $code.landedOn } else { '' })
   $sb = @($res | Where-Object { $_.searchBox })[0]

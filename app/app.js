@@ -382,7 +382,8 @@
       (p.code ? '<span class="chip code" title="Generation ' + p.gen + ', number ' + p.pos + '">' + esc(p.code) + '</span>' : '') +
       '</div></div><div class="actions"><a class="btn primary" href="' + treeHref(p) + '">Show ' + esc(p.short.split(' ')[0]) + '’s ancestors</a>' +
       (photoName(p) ? '<button class="btn" id="photobtn" type="button" aria-expanded="false" aria-controls="photohelp">' + (p.photoFile ? 'Change photo' : 'Add a photo') + '</button>' : '') +
-      (p.doc ? '<button class="btn" id="printbtn">Print</button>' : '') + '</div></div>' + photoHelp(p);
+      (ownDoc(p) ? '<button class="btn" id="flagbtn" type="button" aria-expanded="false" aria-controls="flaghelp">' + (p.flag ? 'Change flag' : 'Add a flag') + '</button>' : '') +
+      (p.doc ? '<button class="btn" id="printbtn">Print</button>' : '') + '</div></div>' + photoHelp(p) + flagHelp(p);
 
     if (p.doc && p.doc.lastError) {
       html += '<div class="notice">The Word document could not be read at the last update (' + esc(p.doc.lastError) + '). The version from ' + esc(fmtDate(p.doc.mtime)) + ' is shown until it can be read again.</div>';
@@ -423,18 +424,19 @@
       Array.prototype.forEach.call(main.querySelectorAll('[data-tab]'), function (x) { x.classList.toggle('on', x.getAttribute('data-tab') === 'story'); });
       setTimeout(function () { window.print(); }, 60);
     };
-    var phb = document.getElementById('photobtn'), phh = document.getElementById('photohelp');
-    if (phb && phh) {
-      phb.onclick = function () {
-        phh.hidden = !phh.hidden;
-        phb.setAttribute('aria-expanded', String(!phh.hidden));
-        if (!phh.hidden) phh.scrollIntoView({ block: 'nearest' });
+    [['photobtn', 'photohelp'], ['flagbtn', 'flaghelp']].forEach(function (pair) {
+      var hb = document.getElementById(pair[0]), hh = document.getElementById(pair[1]);
+      if (!hb || !hh) return;
+      hb.onclick = function () {
+        hh.hidden = !hh.hidden;
+        hb.setAttribute('aria-expanded', String(!hh.hidden));
+        if (!hh.hidden) hh.scrollIntoView({ block: 'nearest' });
       };
-      Array.prototype.forEach.call(phh.querySelectorAll('[data-copytext]'), function (b) {
+      Array.prototype.forEach.call(hh.querySelectorAll('[data-copytext]'), function (b) {
         var label = b.textContent;
         b.onclick = function () { copyText(b.getAttribute('data-copytext'), function () { b.textContent = 'Copied'; setTimeout(function () { b.textContent = label; }, 2000); }); };
       });
-    }
+    });
     var av = main.querySelector('.person-head .avatar img:not(.flag)');
     if (av) av.parentNode.onclick = function () { openLightbox([{ img: p.photo, caption: p.name }], 0); };
     showTab(p, tab, pics, mentions);
@@ -469,9 +471,28 @@
       'A picture already on the computer: copy it into the Photos folder, then rename it to <b>' + esc(name) + '</b> (the ending, such as .jpg, stays).</p></li>' +
       '<li>Open the <b>Family Tree</b> icon on the desktop again. The photo appears in ' + first + '\u2019s square, in the tree and everywhere else.</li></ol>' +
       '<p class="small muted" style="margin-bottom:0">JPEG and PNG pictures work. Words may follow the number, for example <i>' + esc(name) + ' at 20.jpg</i>. ' +
-      'The square shows the middle of the picture and keeps the top, so faces are not cut off; a picture cropped close around the face looks best.</p>' +
-      '<p class="small muted" style="margin-bottom:0"><b>A flag in the corner</b> shows where someone came from. Write a line at the top of the life history such as ' +
-      '<i>Arrived: 1848, from Ireland</i> (or <i>Flag: Ireland</i>), then open the Family Tree icon again.' + (p.flag ? ' Now: ' + esc(p.flag.country) + '.' : '') + '</p></div>';
+      'The square shows the middle of the picture and keeps the top, so faces are not cut off; a picture cropped close around the face looks best.</p></div>';
+    return html;
+  }
+
+  // A flag in the corner of the square: only from a "Flag:" line the family writes in the person's own
+  // life history (genealogy.js reads it; app/flags.js has the pictures).
+  function ownDoc(p) { return p && !p.pseudo && p.doc && p.doc.personKey === p.key ? p.doc : null; }
+  function flagHelp(p) {
+    var doc = ownDoc(p);
+    if (!doc) return '';
+    var first = esc(p.short.split(' ')[0]);
+    var html = '<div class="card photohelp" id="flaghelp" hidden><h2>' + (p.flag ? 'Change the flag of ' : 'Add a flag for ') + first + '</h2>' +
+      '<p>A flag in the corner of ' + first + '\u2019s square shows the country ' + (p.sex === 'f' ? 'she' : p.sex === 'm' ? 'he' : 'they') + ' came from.' +
+      (p.flag ? ' It is now the flag of <b>' + esc(p.flag.country) + '</b>, from the line <i>Flag: ' + esc(p.flag.text) + '</i>.' : '') + '</p>';
+    html += '<ol class="helpsteps">' +
+      '<li>Open ' + first + '\u2019s life history in Word: <b>' + esc(doc.name) + '</b>.' +
+      '<p class="photo-copy"><button class="btn" type="button" data-copytext="' + esc(sourcePath(doc)) + '">Copy where the document is</button></p></li>' +
+      '<li>' + (p.flag ? 'Change the line <i>Flag: ' + esc(p.flag.text) + '</i> near the top' : 'Near the top, with the <i>Birth:</i> and <i>Death:</i> lines, add a line with the country') + ', for example <b>Flag: Ireland</b>. ' +
+      '<p class="photo-copy"><button class="btn" type="button" data-copytext="Flag: ">Copy \u201cFlag: \u201d</button></p></li>' +
+      '<li>Save it (<b>Ctrl+S</b>) and open the <b>Family Tree</b> icon on the desktop again. The flag appears in the corner of the square.</li></ol>' +
+      '<p class="small muted" style="margin-bottom:0">To take the flag away, delete the line (or write <i>Flag: none</i>). The countries that have a flag: ' +
+      esc(G.countryNames().slice().sort().join(', ')) + '.</p></div>';
     return html;
   }
 
@@ -876,9 +897,9 @@
       return esc(x.path) + ' \u2014 ' + why;
     }));
     var flagNotes = n.flags || [];
-    if (flagNotes.length) html += section('Flags that could not be shown', flagNotes.length, 'A Flag: line, or an Arrived: / Immigration: line, that does not name a country the program knows. Writing \u201cfrom\u201d and the country (for example \u201c1848, from Ireland\u201d) or a Flag: line fixes it.', flagNotes.map(function (x) {
+    if (flagNotes.length) html += section('Flags that could not be shown', flagNotes.length, 'A Flag: line that does not name a country the program has a flag for. The person\u2019s page (Add a flag) lists the countries.', flagNotes.map(function (x) {
       var who = byKey(x.person);
-      return (who ? '<a href="' + personHref(who) + '">' + esc(who.short) + '</a>' : esc(x.person)) + ' \u2014 <i>' + esc(x.value) + '</i>';
+      return (who ? '<a href="' + personHref(who) + '">' + esc(who.short) + '</a>' : esc(x.person)) + ' \u2014 <i>Flag: ' + esc(x.value) + '</i>';
     }));
     if (n.ignored.length) html += section('Skipped on purpose', n.ignored.length, 'Listed in family-settings.js as not being about a person.', n.ignored.map(function (d) { return esc(d.path); }));
     if (reportEmail()) {
@@ -923,7 +944,7 @@
       '<li>On the <b>first line</b> of the document: the name and the same number in brackets — <i>' + esc(ex.name + ' (' + ex.code + ')') + '</i>. On the <b>second line</b>: the years — <i>' + esc(ex.years) + '</i>.</li>' +
       '<li>Then, each on its own line: <i>Father:</i>, <i>Mother:</i>, <i>Descendant:</i> (the child in the line), <i>Birth:</i>, <i>Death:</i>, <i>Marriage:</i>. Put the number after a name when you know it: <i>Father: ' + esc(ex.father) + '</i>. Write <i>?</i> when a parent is not known.</li>' +
       '<li>Open the <b>Family Tree</b> icon on the desktop. New and changed documents are read by themselves (a few seconds) and the page refreshes on its own. The new person appears in the tree, joined to their parents and child.</li>' +
-      '</ol><p class="muted">Pictures in the documents appear automatically. To put a photo in a person’s square, open their page and click <b>Add a photo</b>. A line such as <i>Arrived: 1848, from Ireland</i> (or <i>Flag: Ireland</i>) puts that country’s flag in the corner of the square. Documents that are not about one person' + (ex.story ? ' (like “' + esc(ex.story) + '”)' : '') + ' appear under <a href="#/stories">Stories</a>.</p>' +
+      '</ol><p class="muted">Pictures in the documents appear automatically. To put a photo in a person’s square, open their page and click <b>Add a photo</b>. A line <i>Flag: Ireland</i> in a life history puts that country’s flag in the corner of the square (the person’s page has <b>Add a flag</b>). Documents that are not about one person' + (ex.story ? ' (like “' + esc(ex.story) + '”)' : '') + ' appear under <a href="#/stories">Stories</a>.</p>' +
       '<p class="muted" style="margin-bottom:0"><b>The numbering:</b> the father of <i>(g, n)</i> is <i>(g+1, 2n−1)</i> and the mother is <i>(g+1, 2n)</i>. ' +
       (pf && pm ? 'For example, the parents of ' + esc(ex.code) + ' are ' + esc(pf) + ' and ' + esc(pm) + '. ' : '') +
       letters + '.</p></div>' +

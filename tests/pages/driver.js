@@ -154,6 +154,19 @@
     go('#/p/' + enc(withFlag), function (res, next) {
       var f = document.querySelector('#main .person-head .avatar img.flag'), chip = document.querySelector('#main .person-head .flagchip');
       res.flagShown = { person: withFlag, inSquare: !!f, chip: chip ? chip.textContent : '', loaded: !!(f && f.complete && f.naturalWidth > 0) };
+      var fb = $('flagbtn'), fh = $('flaghelp');
+      res.flagShown.button = fb ? fb.textContent : '';
+      if (fb) fb.click();
+      res.flagShown.boxShown = !!(fh && !fh.hidden);
+      res.flagShown.boxText = fh ? fh.textContent.replace(/\s+/g, ' ') : '';
+      next();
+    });
+  }
+  var noFlag = Object.keys(M.people).sort().filter(function (k) { var p = M.people[k]; return !p.flag && p.doc && p.doc.personKey === k && G.resolve(k) === k; })[0];
+  if (noFlag) {
+    go('#/p/' + enc(noFlag), function (res, next) {
+      var fb = $('flagbtn'), fh = $('flaghelp');
+      res.flagButton = { person: noFlag, button: fb ? fb.textContent : '', copy: fh ? Array.prototype.map.call(fh.querySelectorAll('[data-copytext]'), function (b) { return b.getAttribute('data-copytext'); }) : [] };
       next();
     });
   }

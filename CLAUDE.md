@@ -123,11 +123,11 @@ first.
     sets `p.photo`, `p.photoFile` and keeps the document's picture in `p.docPhoto`. Unused photos go to
     `notes.photos` (`no number`, `nobody`, `unreadable`, `another`).
   - The person page's "Add a photo" / "Change photo" button (`photobtn`, box `photohelp`) explains the steps.
-- **Flags (since 1.1.0).** `genealogy.js` (`flagOf`, `COUNTRIES`) sets `p.flag = { code, country, from, text }`
-  from a `Flag:` line, else from the first `immigration` line (a country after "from" wins; one after
-  "to/in/at/..." is the destination). Words match whole, without look-behind (older browsers); "New
-  England", "New South Wales", "New Mexico", "South America" are excluded. Lines without a known country go
-  to `notes.flags`. `app/flags.js` holds only the pictures (`window.FAMILY_FLAGS`, flag-icons, MIT; Spain and
+- **Flags (since 1.1.0).** `genealogy.js` (`flagOf`, `COUNTRIES`) sets `p.flag = { code, country, text }`
+  only from a `Flag:` line in the person's life history. The family asked for this: flags are chosen by
+  hand, never guessed from Immigration:/Arrived: lines. Words match whole, without look-behind (older
+  browsers); "New England", "New South Wales", "New Mexico", "South America" are excluded. A `Flag:` line
+  without a known country goes to `notes.flags`. The person page has `flagbtn` / `flaghelp`. `app/flags.js` holds only the pictures (`window.FAMILY_FLAGS`, flag-icons, MIT; Spain and
   Serbia as plain civil flags); `app.js` shows them as data-URI `<img class="flag">`, so `genealogy.js` and
   `tests/compare-trees.html` do not need it. A new country needs both a `COUNTRIES` entry and a picture.
 - **`$BuilderVersion`** (in Update-FamilyTree.ps1) is the data-format version, currently 4. Raise it only
@@ -360,7 +360,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tests\Run-Tests.ps1 [-Out <f
   is fictional. Never add a real person, place or document text.
 - **The page tests rely on element ids in app.js:** main, statusbar, lightbox, searchform, searchinput,
   psort, pline, pq, pdocs, pletters, plist, program-version, reportbtn, copyreport, reporttext,
-  notes-report, settings-problem, photobtn and photohelp. Renaming them breaks the tests.
+  notes-report, settings-problem, photobtn, photohelp, flagbtn and flaghelp. Renaming them breaks the tests.
 - **Other tools:**
   - `tools\Check-Tree.ps1 [-Viewer <folder>]` prints `{version, built, docs, personDocs, peopleKnown,
     people, roots, errors, settingsProblem, buildError, loadErrors}`. Exit codes: 0 healthy, 1 build

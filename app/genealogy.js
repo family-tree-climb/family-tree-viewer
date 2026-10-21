@@ -846,10 +846,8 @@
   }
 
   // ---------------------------------------------------------------- flags
-  // The country a person came from, for the flag in the corner of their square: from a "Flag:" line
-  // ("Flag: Ireland"; "Flag: none" for no flag), otherwise from an Immigration: / Emigration: /
-  // Arrival: / Arrived: line ("1848, from County Cork, Ireland to New York" -> Ireland). In such a line a
-  // country after "from" wins; one after "to", "in", "at" ... is where they went, not where they came from.
+  // The flag in the corner of a person's square comes only from a "Flag:" line that the family writes
+  // in the life history ("Flag: Ireland", "Flag: Irish"); nothing is guessed from other lines.
   // Each entry: code (the picture in app/flags.js), the name shown, the words (matched whole, any case),
   // and what may not stand right before them ("New England", "New South Wales", "South America").
   var COUNTRIES = [
@@ -925,32 +923,16 @@
     hits.sort(function (a, b) { return (a.at - b.at) || (b.len - a.len); });
     return hits.filter(function (h, i) { return !hits.some(function (o, j) { return j !== i && o.at <= h.at && o.at + o.len >= h.at + h.len && (o.len > h.len || j < i); }); });
   }
-  function countryCameFrom(text) {
-    var hits = countriesIn(text);
-    var from = hits.filter(function (h) { return /(^|[^a-z])from (the )?$/.test(h.before); });
-    if (from.length) return from[0];
-    var notTo = hits.filter(function (h) { return !/(^|[^a-z])(to|in|into|at|for|reached|landed|via|through) (the )?$/.test(h.before); });
-    return notTo[0] || null;
-  }
-  // { code, country, from: 'flag' | 'immigration', text } or null; lines that name no known country are noted
+  // { code, country, text } or null; a Flag: line that names no known country is noted
   function flagOf(p, notesList) {
-    var f = p.facts || {};
-    var fl = (f.flag || [])[0];
-    if (fl) {
-      if (/^\s*(none|no|-+)\s*\.?\s*$/i.test(fl)) return null;
-      var c = countriesIn(fl)[0];
-      if (c) return { code: c.code, country: c.name, from: 'flag', text: fl };
-      notesList.push({ person: p.key, line: 'flag', value: fl });
-      return null;
-    }
-    var im = f.immigration || [];
-    for (var i = 0; i < im.length; i++) {
-      var c2 = countryCameFrom(im[i]);
-      if (c2) return { code: c2.code, country: c2.name, from: 'immigration', text: im[i] };
-    }
-    if (im.length) notesList.push({ person: p.key, line: 'immigration', value: im[0] });
+    var fl = ((p.facts || {}).flag || [])[0];
+    if (!fl || /^\s*(none|no|-+)\s*\.?\s*$/i.test(fl)) return null;
+    var c = countriesIn(fl)[0];
+    if (c) return { code: c.code, country: c.name, text: fl };
+    notesList.push({ person: p.key, value: fl });
     return null;
   }
+  function countryNames() { return COUNTRIES.map(function (c) { return c.name.replace(/^the /, ''); }); }
 
   // ---------------------------------------------------------------- relationship words
   function ordinal(n) { var s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
@@ -984,6 +966,6 @@
     fatherKey: fatherKey, motherKey: motherKey, childKey: childKey, spouseKey: spouseKey, sexOf: sexOf,
     parseKey: parseKey, validKey: validKey, findCodes: findCodes,
     relationTo: relationTo, relationWord: relationWord, placeOf: placeOf, firstYear: firstYear, marriageYear: marriageYear, shortName: shortName,
-    normName: normName, roots: ROOTS, analyse: analyse, parseRef: parseRef, countriesIn: countriesIn, countryCameFrom: countryCameFrom
+    normName: normName, roots: ROOTS, analyse: analyse, parseRef: parseRef, countriesIn: countriesIn, countryNames: countryNames
   };
 })();
